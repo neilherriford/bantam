@@ -1,0 +1,19 @@
+[package]
+name = "bantam"
+version = "0.1.0"
+edition = "2024"
+
+
+[workspace]
+members = [
+    "z80",
+]
+
+[dependencies]
+z80 = { path = "./z80" }
+
+[lints.clippy]
+all = { level = "warn", priority = -2 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
