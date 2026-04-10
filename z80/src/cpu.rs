@@ -12,6 +12,7 @@ pub enum Instructions {
     NOP = 0,
     HALT = 0x76,
     DI = 0xF3,
+    EI = 0xFB,
     #[num_enum(default)]
     Unknown,
 }
@@ -40,6 +41,13 @@ where
                 self.registers.iff1 = false;
                 self.registers.iff2 = false;
             }
+            Instructions::EI => {
+                self.registers.increment_pc();
+                self.registers.increment_r();
+                self.registers.iff1 = true;
+                self.registers.iff2 = true;
+            }
+
             Instructions::Unknown => panic!("Unsupported instruction"),
         }
     }
@@ -91,8 +99,6 @@ mod tests {
             cpu.bus.write8(1, Instructions::DI.into());
             assert_eq!(cpu.registers.pc, 0);
             assert_eq!(cpu.registers.r, 0);
-            assert!(cpu.registers.iff1);
-            assert!(cpu.registers.iff2);
 
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
@@ -105,6 +111,30 @@ mod tests {
             assert_eq!(cpu.registers.r, 2);
             assert!(!cpu.registers.iff1);
             assert!(!cpu.registers.iff2);
+        }
+
+        #[test]
+        fn ei_enables_iff() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+
+            cpu.registers.iff1 = false;
+            cpu.registers.iff2 = false;
+            cpu.bus.write8(0, Instructions::EI.into());
+            cpu.bus.write8(1, Instructions::EI.into());
+            assert_eq!(cpu.registers.pc, 0);
+            assert_eq!(cpu.registers.r, 0);
+
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.iff1);
+            assert!(cpu.registers.iff2);
+
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 2);
+            assert!(cpu.registers.iff1);
+            assert!(cpu.registers.iff2);
         }
     }
 }
