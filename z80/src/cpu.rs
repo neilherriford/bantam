@@ -1,23 +1,18 @@
 use crate::{bus::Bus, registers::Registers};
+use num_enum::{FromPrimitive, IntoPrimitive};
 
 pub struct Cpu<B: Bus> {
     pub registers: Registers,
     pub bus: B,
 }
 
+#[derive(FromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Instructions {
     NOP = 0,
+    HALT = 0x76,
+    #[num_enum(default)]
     Unknown,
-}
-
-impl From<u8> for Instructions {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Instructions::NOP,
-            _ => Instructions::Unknown,
-        }
-    }
 }
 
 impl<B> Cpu<B>
@@ -31,11 +26,13 @@ where
     pub fn step(&mut self) {
         match Instructions::from(self.bus.read8(self.registers.pc)) {
             Instructions::NOP => {
-                self.registers.pc += 1;
-                self.registers.r =
-                    self.registers.r & 0x80 | (self.registers.r.wrapping_add(1) & 0x7f);
+                self.registers.increment_pc();
+                self.registers.increment_r();
             }
-
+            Instructions::HALT => {
+                self.registers.increment_r();
+                self.registers.halted = true
+            }
             Instructions::Unknown => panic!("Unsupported instruction"),
         }
     }
@@ -44,7 +41,11 @@ where
 #[cfg(test)]
 mod tests {
     mod instructions {
-        use crate::{bus::TestBus, cpu::Cpu, registers::Registers};
+        use crate::{
+            bus::{Bus, TestBus},
+            cpu::{Cpu, Instructions},
+            registers::Registers,
+        };
 
         #[test]
         fn nop_advances_pc() {
@@ -54,6 +55,19 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn halt_stops() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, Instructions::HALT.into());
+            assert_eq!(cpu.registers.pc, 0);
+            assert_eq!(cpu.registers.r, 0);
+            assert!(!cpu.registers.halted);
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.halted);
         }
     }
 }

@@ -68,6 +68,16 @@ impl Registers {
         }
     }
 
+    #[inline]
+    pub fn increment_pc(&mut self) {
+        self.pc = self.pc.wrapping_add(1);
+    }
+
+    #[inline]
+    pub fn increment_r(&mut self) {
+        self.r = self.r & 0x80 | (self.r.wrapping_add(1) & 0x7f);
+    }
+
     pub fn wz(&self) -> u16 {
         ((self.w as u16) << 8) | (self.z as u16)
     }
