@@ -76,6 +76,14 @@ where
                 let value = self.read_indexed_register(src);
                 self.write_indexed_register(dest, value);
             }
+            (0, register, 6) => {
+                // LD r, n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+                let value = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                self.write_indexed_register(register, value);
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -254,6 +262,31 @@ mod tests {
             assert_eq!(cpu.registers.h, 1);
             assert_eq!(cpu.registers.l, 2);
             assert_eq!(cpu.registers.c, 42);
+        }
+
+        #[test]
+        fn should_ld_r_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 1 << 3 | 6);
+            cpu.bus.write8(1, 42);
+            // ld r, nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.c, 42);
+        }
+
+        #[test]
+        fn should_ld_r_n_to_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(1 << 8 | 2);
+            cpu.bus.write8(0, 6 << 3 | 6);
+            cpu.bus.write8(1, 42);
+            // ld r, nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.bus.read8(1 << 8 | 2), 42);
         }
     }
 }
