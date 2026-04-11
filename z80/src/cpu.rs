@@ -71,6 +71,7 @@ where
             }
             (1, dest, src) => {
                 // LD r, r'
+                // LD r, (HL)
                 self.registers.increment_pc();
                 self.registers.increment_r();
                 let value = self.read_indexed_register(src);
@@ -90,7 +91,35 @@ where
 }
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
+    static REG_A: u8 = 7;
+    static REG_B: u8 = 0;
+    static REG_C: u8 = 1;
+    static REG_D: u8 = 2;
+    static REG_E: u8 = 3;
+    static REG_H: u8 = 4;
+    static REG_L: u8 = 5;
+    static REG_HL: u8 = 6;
+
+    static REG_A_SRC: u8 = REG_A;
+    static REG_B_SRC: u8 = REG_B;
+    static REG_C_SRC: u8 = REG_C;
+    static REG_D_SRC: u8 = REG_D;
+    static REG_E_SRC: u8 = REG_E;
+    static REG_H_SRC: u8 = REG_H;
+    static REG_L_SRC: u8 = REG_L;
+    static REG_HL_SRC: u8 = REG_HL;
+
+    static REG_A_DEST: u8 = REG_A << 3;
+    static REG_B_DEST: u8 = REG_B << 3;
+    static REG_C_DEST: u8 = REG_C << 3;
+    static REG_D_DEST: u8 = REG_D << 3;
+    static REG_E_DEST: u8 = REG_E << 3;
+    static REG_H_DEST: u8 = REG_H << 3;
+    static REG_L_DEST: u8 = REG_L << 3;
+    static REG_HL_DEST: u8 = REG_HL << 3;
+
     mod cpu {
         use crate::{
             bus::{Bus, TestBus},
@@ -154,7 +183,10 @@ mod tests {
     mod instructions {
         use crate::{
             bus::{Bus, TestBus},
-            cpu::Cpu,
+            cpu::{
+                Cpu,
+                tests::{REG_C_DEST, REG_HL_DEST},
+            },
             registers::Registers,
         };
 
@@ -267,7 +299,7 @@ mod tests {
         #[test]
         fn should_ld_r_n() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.bus.write8(0, 1 << 3 | 6);
+            cpu.bus.write8(0, REG_C_DEST | 6);
             cpu.bus.write8(1, 42);
             // ld r, nn
             cpu.step();
@@ -280,9 +312,9 @@ mod tests {
         fn should_ld_r_n_to_hl() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.set_hl(1 << 8 | 2);
-            cpu.bus.write8(0, 6 << 3 | 6);
+            cpu.bus.write8(0, REG_HL_DEST | 6);
             cpu.bus.write8(1, 42);
-            // ld r, nn
+            // ld r, n
             cpu.step();
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
