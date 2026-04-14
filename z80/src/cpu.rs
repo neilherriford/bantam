@@ -85,6 +85,67 @@ where
                 self.registers.increment_pc();
                 self.write_indexed_register(register, value);
             }
+            (0, op @ 0..=3, 2) => {
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let operation = op & 1;
+                const BC: u8 = 0;
+                const WRITE: u8 = 0;
+
+                let address = if op & 2 == BC {
+                    self.registers.bc()
+                } else {
+                    self.registers.de()
+                };
+
+                if operation == WRITE {
+                    // LD (BC), A
+                    // LD (DE), A
+                    self.bus.write8(address, self.registers.a);
+                } else {
+                    // LD A, (BC)
+                    // LD A, (DE)
+                    self.registers.a = self.bus.read8(address);
+                }
+            }
+            (0, op @ 4..=7, 2) => {
+                // LD (nn), HL
+                // LD HL, (nn)
+                // LD (nn), A
+                // LD A, (nn)
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let operation = op & 1;
+                const HL: u8 = 0;
+                const WRITE: u8 = 0;
+
+                let low = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                let high = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                let address = (high as u16) << 8 | low as u16;
+
+                if op & 2 == HL {
+                    if operation == WRITE {
+                        // LD (nn), HL
+                        self.bus.write8(address, self.registers.l);
+                        self.bus.write8(address.wrapping_add(1), self.registers.h);
+                    } else {
+                        // LD HL, (nn)
+                        self.registers.l = self.bus.read8(address);
+                        self.registers.h = self.bus.read8(address.wrapping_add(1));
+                    }
+                } else if operation == WRITE {
+                    // LD (nn), A
+                    self.bus.write8(address, self.registers.a);
+                } else {
+                    //  LD A, (nn)
+                    self.registers.a = self.bus.read8(address);
+                }
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -185,7 +246,7 @@ mod tests {
             bus::{Bus, TestBus},
             cpu::{
                 Cpu,
-                tests::{REG_C_DEST, REG_HL_DEST},
+                tests::{REG_C_DEST, REG_E_SRC, REG_HL_DEST, REG_HL_SRC},
             },
             registers::Registers,
         };
@@ -271,7 +332,7 @@ mod tests {
             cpu.registers.e = 42;
             cpu.registers.c = 13;
             // ld c e
-            cpu.bus.write8(0, 0x4B);
+            cpu.bus.write8(0, 1 << 6 | REG_C_DEST | REG_E_SRC);
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
@@ -284,10 +345,9 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.h = 1;
             cpu.registers.l = 2;
-            cpu.bus.write8(1 << 8 | 2, 42);
+            cpu.bus.write8(0x0102, 42);
             cpu.registers.c = 13;
-            // ld c hl
-            cpu.bus.write8(0, 0x4E);
+            cpu.bus.write8(0, 1 << 6 | REG_C_DEST | REG_HL_SRC);
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
@@ -311,14 +371,127 @@ mod tests {
         #[test]
         fn should_ld_r_n_to_hl() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_hl(1 << 8 | 2);
+            cpu.registers.set_hl(0x0102);
             cpu.bus.write8(0, REG_HL_DEST | 6);
             cpu.bus.write8(1, 42);
             // ld r, n
             cpu.step();
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
-            assert_eq!(cpu.bus.read8(1 << 8 | 2), 42);
+            assert_eq!(cpu.bus.read8(0x0102), 42);
+        }
+
+        #[test]
+        fn should_load_bc_into_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(0x0102);
+            cpu.bus.write8(0x0102, 42);
+            cpu.bus.write8(0, 1 << 3 | 2);
+            // ld a, (BC)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 42);
+        }
+
+        #[test]
+        fn should_load_a_into_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(0x0102);
+            cpu.registers.a = 42;
+            cpu.bus.write8(0, 2);
+            // ld (BC), a
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.bus.read8(0x0102), 42);
+        }
+
+        #[test]
+        fn should_load_de_into_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(0x0102);
+            cpu.bus.write8(0x0102, 42);
+            cpu.bus.write8(0, 3 << 3 | 2);
+            // ld a, (DE)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 42);
+        }
+
+        #[test]
+        fn should_load_a_into_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(0x0102);
+            cpu.registers.a = 42;
+            cpu.bus.write8(0, 2 << 3 | 2);
+            // ld (DE), a
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.bus.read8(0x0102), 42);
+        }
+
+        #[test]
+        fn should_load_hl_into_nn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x0102);
+            cpu.bus.write8(0, 4 << 3 | 2);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD (nn), HL
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.l, cpu.bus.read8(0xB0A));
+            assert_eq!(cpu.registers.h, cpu.bus.read8(0xB0B));
+        }
+
+        #[test]
+        fn should_load_nn_into_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 5 << 3 | 2);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            cpu.bus.write8(0xB0A, 13);
+            cpu.bus.write8(0xB0B, 42);
+            // LD HL, (nn)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.h, 42);
+            assert_eq!(cpu.registers.l, 13);
+        }
+
+        #[test]
+        fn should_load_a_into_nn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x0102);
+            cpu.registers.a = 42;
+            cpu.bus.write8(0, 6 << 3 | 2);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD (nn), A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, cpu.bus.read8(0xB0A));
+        }
+
+        #[test]
+        fn should_load_nn_into_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x0102);
+            cpu.bus.write8(0, 7 << 3 | 2);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            cpu.bus.write8(0xB0A, 42);
+            // LD A, (nn)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 42);
         }
     }
 }
