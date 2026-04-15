@@ -43,6 +43,16 @@ where
         }
     }
 
+    fn write_indexed_pair_register(&mut self, index: u8, value: u16) {
+        match index {
+            0 => self.registers.set_bc(value),
+            1 => self.registers.set_de(value),
+            2 => self.registers.set_hl(value),
+            3 => self.registers.sp = value,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn step(&mut self) {
         match decode::into_group_and_operands(self.bus.read8(self.registers.pc)) {
             (0, 0, 0) => {
@@ -145,6 +155,21 @@ where
                     //  LD A, (nn)
                     self.registers.a = self.bus.read8(address);
                 }
+            }
+            (0, pair @ (0 | 2 | 4 | 6), 1) => {
+                // LD BC, nn
+                // LD DE, nn
+                // LD HL, nn
+                // LD SP, nn
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let low = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                let high = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                self.write_indexed_pair_register(pair >> 1, ((high as u16) << 8) | low as u16);
             }
             _ => panic!("Unsupported instruction"),
         }
@@ -449,7 +474,7 @@ mod tests {
         }
 
         #[test]
-        fn should_load_nn_into_hl() {
+        fn should_load_address_of_nn_into_hl() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 5 << 3 | 2);
             cpu.bus.write8(1, 0xA);
@@ -492,6 +517,58 @@ mod tests {
             assert_eq!(cpu.registers.pc, 3);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 42);
+        }
+
+        #[test]
+        fn should_load_nn_into_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 1);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD BC, (nn)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.bc(), 0xB0A);
+        }
+
+        #[test]
+        fn should_load_nn_into_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 2 << 3 | 1);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD BC, nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.de(), 0xB0A);
+        }
+
+        #[test]
+        fn should_load_of_nn_into_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 1);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD HL, nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.hl(), 0xB0A);
+        }
+
+        #[test]
+        fn should_load_of_nn_into_sp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 6 << 3 | 1);
+            cpu.bus.write8(1, 0xA);
+            cpu.bus.write8(2, 0xB);
+            // LD HL, nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 0xB0A);
         }
     }
 }
