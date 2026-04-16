@@ -78,6 +78,16 @@ impl Registers {
         self.r = self.r & 0x80 | (self.r.wrapping_add(1) & 0x7f);
     }
 
+    #[inline]
+    pub fn increment_sp(&mut self) {
+        self.sp = self.sp.wrapping_add(1);
+    }
+
+    #[inline]
+    pub fn decrement_sp(&mut self) {
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
     pub fn wz(&self) -> u16 {
         ((self.w as u16) << 8) | (self.z as u16)
     }

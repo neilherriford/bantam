@@ -43,16 +43,6 @@ where
         }
     }
 
-    fn write_indexed_pair_register(&mut self, index: u8, value: u16) {
-        match index {
-            0 => self.registers.set_bc(value),
-            1 => self.registers.set_de(value),
-            2 => self.registers.set_hl(value),
-            3 => self.registers.sp = value,
-            _ => unreachable!(),
-        }
-    }
-
     pub fn step(&mut self) {
         match decode::into_group_and_operands(self.bus.read8(self.registers.pc)) {
             (0, 0, 0) => {
@@ -169,7 +159,51 @@ where
                 let high = self.bus.read8(self.registers.pc);
                 self.registers.increment_pc();
 
-                self.write_indexed_pair_register(pair >> 1, ((high as u16) << 8) | low as u16);
+                let value = ((high as u16) << 8) | low as u16;
+                match pair {
+                    0 => self.registers.set_bc(value),
+                    2 => self.registers.set_de(value),
+                    4 => self.registers.set_hl(value),
+                    6 => self.registers.sp = value,
+                    _ => unreachable!(),
+                }
+            }
+            (3, pair @ (0 | 2 | 4 | 6), 5) => {
+                // PUSH rr
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let (high, low) = match pair {
+                    0 => (self.registers.b, self.registers.c),
+                    2 => (self.registers.d, self.registers.e),
+                    4 => (self.registers.h, self.registers.l),
+                    6 => (self.registers.a, self.registers.f),
+                    _ => unreachable!(),
+                };
+
+                self.registers.decrement_sp();
+                self.bus.write8(self.registers.sp, high);
+                self.registers.decrement_sp();
+                self.bus.write8(self.registers.sp, low);
+            }
+            (3, pair @ (0 | 2 | 4 | 6), 1) => {
+                // POP rr
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let low = self.bus.read8(self.registers.sp);
+                self.registers.increment_sp();
+                let high = self.bus.read8(self.registers.sp);
+                self.registers.increment_sp();
+
+                let value = ((high as u16) << 8) | low as u16;
+                match pair {
+                    0 => self.registers.set_bc(value),
+                    2 => self.registers.set_de(value),
+                    4 => self.registers.set_hl(value),
+                    6 => self.registers.set_af(value),
+                    _ => unreachable!(),
+                }
             }
             _ => panic!("Unsupported instruction"),
         }
@@ -569,6 +603,130 @@ mod tests {
             assert_eq!(cpu.registers.pc, 3);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.sp, 0xB0A);
+        }
+
+        #[test]
+        fn should_push_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(0xBEEF);
+            cpu.registers.sp = 100;
+            cpu.bus.write8(0, 3 << 6 | 5);
+            // PUSH BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 98);
+            assert_eq!(cpu.bus.read8(99), 0xBE);
+            assert_eq!(cpu.bus.read8(98), 0xEF);
+        }
+
+        #[test]
+        fn should_push_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(0xBEEF);
+            cpu.registers.sp = 100;
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 5);
+            // PUSH DE
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 98);
+            assert_eq!(cpu.bus.read8(99), 0xBE);
+            assert_eq!(cpu.bus.read8(98), 0xEF);
+        }
+
+        #[test]
+        fn should_push_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.sp = 100;
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 5);
+            // PUSH HL
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 98);
+            assert_eq!(cpu.bus.read8(99), 0xBE);
+            assert_eq!(cpu.bus.read8(98), 0xEF);
+        }
+
+        #[test]
+        fn should_push_af() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_af(0xBEEF);
+            cpu.registers.sp = 100;
+            cpu.bus.write8(0, 3 << 6 | 6 << 3 | 5);
+            // PUSH AF
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 98);
+            assert_eq!(cpu.bus.read8(99), 0xBE);
+            assert_eq!(cpu.bus.read8(98), 0xEF);
+        }
+
+        #[test]
+        fn should_pop_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(99, 0xBE);
+            cpu.bus.write8(98, 0xEF);
+            cpu.registers.sp = 98;
+
+            cpu.bus.write8(0, 3 << 6 | 1);
+            // POP BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 100);
+            assert_eq!(cpu.registers.bc(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_pop_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(99, 0xBE);
+            cpu.bus.write8(98, 0xEF);
+            cpu.registers.sp = 98;
+
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 1);
+            // POP BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 100);
+            assert_eq!(cpu.registers.de(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_pop_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(99, 0xBE);
+            cpu.bus.write8(98, 0xEF);
+            cpu.registers.sp = 98;
+
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 1);
+            // POP BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 100);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_pop_af() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(99, 0xBE);
+            cpu.bus.write8(98, 0xEF);
+            cpu.registers.sp = 98;
+
+            cpu.bus.write8(0, 3 << 6 | 6 << 3 | 1);
+            // POP BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.sp, 100);
+            assert_eq!(cpu.registers.af(), 0xBEEF);
         }
     }
 }
