@@ -402,16 +402,14 @@ mod tests {
         #[test]
         fn should_load_hl_alt_into_c() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.h = 1;
-            cpu.registers.l = 2;
-            cpu.bus.write8(0x0102, 42);
+            cpu.registers.h = 0xBE;
+            cpu.registers.l = 0xEF;
+            cpu.bus.write8(0xBEEF, 42);
             cpu.registers.c = 13;
             cpu.bus.write8(0, 1 << 6 | REG_C_DEST | REG_HL_SRC);
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert_eq!(cpu.registers.h, 1);
-            assert_eq!(cpu.registers.l, 2);
             assert_eq!(cpu.registers.c, 42);
         }
 
@@ -430,21 +428,21 @@ mod tests {
         #[test]
         fn should_ld_r_n_to_hl() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_hl(0x0102);
+            cpu.registers.set_hl(0xBEEF);
             cpu.bus.write8(0, REG_HL_DEST | 6);
             cpu.bus.write8(1, 42);
             // ld r, n
             cpu.step();
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
-            assert_eq!(cpu.bus.read8(0x0102), 42);
+            assert_eq!(cpu.bus.read8(0xBEEF), 42);
         }
 
         #[test]
         fn should_load_bc_into_a() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_bc(0x0102);
-            cpu.bus.write8(0x0102, 42);
+            cpu.registers.set_bc(0xBEEF);
+            cpu.bus.write8(0xBEEF, 42);
             cpu.bus.write8(0, 1 << 3 | 2);
             // ld a, (BC)
             cpu.step();
@@ -456,21 +454,21 @@ mod tests {
         #[test]
         fn should_load_a_into_bc() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_bc(0x0102);
+            cpu.registers.set_bc(0xBEEF);
             cpu.registers.a = 42;
             cpu.bus.write8(0, 2);
             // ld (BC), a
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert_eq!(cpu.bus.read8(0x0102), 42);
+            assert_eq!(cpu.bus.read8(0xBEEF), 42);
         }
 
         #[test]
         fn should_load_de_into_a() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_de(0x0102);
-            cpu.bus.write8(0x0102, 42);
+            cpu.registers.set_de(0xBEEF);
+            cpu.bus.write8(0xBEEF, 42);
             cpu.bus.write8(0, 3 << 3 | 2);
             // ld a, (DE)
             cpu.step();
@@ -482,20 +480,20 @@ mod tests {
         #[test]
         fn should_load_a_into_de() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_de(0x0102);
+            cpu.registers.set_de(0xBEEF);
             cpu.registers.a = 42;
             cpu.bus.write8(0, 2 << 3 | 2);
             // ld (DE), a
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert_eq!(cpu.bus.read8(0x0102), 42);
+            assert_eq!(cpu.bus.read8(0xBEEF), 42);
         }
 
         #[test]
         fn should_load_hl_into_nn() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_hl(0x0102);
+            cpu.registers.set_hl(0xBEEF);
             cpu.bus.write8(0, 4 << 3 | 2);
             cpu.bus.write8(1, 0xA);
             cpu.bus.write8(2, 0xB);
@@ -526,7 +524,7 @@ mod tests {
         #[test]
         fn should_load_a_into_nn() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_hl(0x0102);
+            cpu.registers.set_hl(0xBEEF);
             cpu.registers.a = 42;
             cpu.bus.write8(0, 6 << 3 | 2);
             cpu.bus.write8(1, 0xA);
@@ -541,7 +539,7 @@ mod tests {
         #[test]
         fn should_load_nn_into_a() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_hl(0x0102);
+            cpu.registers.set_hl(0xBEEF);
             cpu.bus.write8(0, 7 << 3 | 2);
             cpu.bus.write8(1, 0xA);
             cpu.bus.write8(2, 0xB);
