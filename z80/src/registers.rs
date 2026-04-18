@@ -1,7 +1,9 @@
+use crate::flags::is_bit_set;
+
 pub struct Registers {
     pub w: u8, // Temporary
     pub z: u8, // Temporary
-    pub a: u8, // Accumuator
+    pub a: u8, // Accumulator
     pub f: u8, // Flags
     pub b: u8, //
     pub c: u8, //
@@ -10,7 +12,7 @@ pub struct Registers {
     pub h: u8, // Accumulator
     pub l: u8, // Accumulator
 
-    pub a_alt: u8, // Accumuator
+    pub a_alt: u8, // Accumulator
     pub f_alt: u8, // Flags
     pub b_alt: u8, //
     pub c_alt: u8, //
@@ -123,6 +125,18 @@ impl Registers {
     pub fn set_hl(&mut self, value: u16) {
         self.h = (value >> 8) as u8;
         self.l = (value & 0xFF) as u8;
+    }
+
+    pub fn set_flag(&mut self, bit: u8, value: bool) {
+        if value {
+            self.f |= 1 << bit;
+        } else {
+            self.f &= !(1 << bit);
+        }
+    }
+
+    pub fn is_set_flag(&self, index: u8) -> bool {
+        is_bit_set(self.f, index)
     }
 }
 

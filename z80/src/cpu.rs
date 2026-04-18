@@ -1,4 +1,9 @@
-use crate::{bus::Bus, decode, registers::Registers};
+use crate::{
+    bus::Bus,
+    decode,
+    flags::{self, is_set},
+    registers::Registers,
+};
 
 pub struct Cpu<B: Bus> {
     pub registers: Registers,
@@ -205,6 +210,40 @@ where
                     _ => unreachable!(),
                 }
             }
+            (0, register, 4) => {
+                // INC r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let before = self.read_indexed_register(register);
+                let after = before.wrapping_add(1);
+                self.write_indexed_register(register, after);
+
+                self.registers.set_flag(flags::ADD_SUBTRACT, false);
+                self.registers
+                    .set_flag(flags::PARITY_OVERFLOW, before == 0x7F);
+                self.registers
+                    .set_flag(flags::HALF_CARRY, is_set(before, 0x0F));
+                self.registers.set_flag(flags::ZERO, after == 0);
+                self.registers.set_flag(flags::SIGN, is_set(after, 0x80));
+            }
+            (0, register, 5) => {
+                // DEC r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let before = self.read_indexed_register(register);
+                let after = before.wrapping_sub(1);
+                self.write_indexed_register(register, after);
+
+                self.registers.set_flag(flags::ADD_SUBTRACT, true);
+                self.registers
+                    .set_flag(flags::PARITY_OVERFLOW, before == 0x80);
+                self.registers
+                    .set_flag(flags::HALF_CARRY, before & 0x0F == 0x00);
+                self.registers.set_flag(flags::ZERO, after == 0);
+                self.registers.set_flag(flags::SIGN, is_set(after, 0x80));
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -307,6 +346,7 @@ mod tests {
                 Cpu,
                 tests::{REG_C_DEST, REG_E_SRC, REG_HL_DEST, REG_HL_SRC},
             },
+            flags::{self, is_bit_set, is_set},
             registers::Registers,
         };
 
@@ -725,6 +765,314 @@ mod tests {
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.sp, 100);
             assert_eq!(cpu.registers.af(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_inc_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+        }
+
+        #[test]
+        fn should_inc_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4);
+            // INC B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.b, 1);
+        }
+
+        #[test]
+        fn should_inc_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 1 << 3 | 4);
+            // INC C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.c, 1);
+        }
+
+        #[test]
+        fn should_inc_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 2 << 3 | 4);
+            // INC D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.d, 1);
+        }
+
+        #[test]
+        fn should_inc_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 3 | 4);
+            // INC E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.e, 1);
+        }
+
+        #[test]
+        fn should_inc_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 4);
+            // INC H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.h, 1);
+        }
+
+        #[test]
+        fn should_inc_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 5 << 3 | 4);
+            // INC H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.l, 1);
+        }
+
+        #[test]
+        fn should_inc_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 6 << 3 | 4);
+            // INC (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.bus.read8(0xBEEF), 1);
+        }
+
+        #[test]
+        fn should_set_sign_flag_on_inc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x7F;
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::SIGN));
+        }
+
+        #[test]
+        fn should_set_zero_flag_on_inc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xFF;
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_set_half_carry_flag_on_inc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x0F;
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_set_overflow_on_inc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x7F;
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::PARITY_OVERFLOW));
+        }
+
+        #[test]
+        fn should_reset_add_subtract_on_inc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+            cpu.registers.a = 0xAB;
+            cpu.bus.write8(0, 7 << 3 | 4);
+            // INC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(!cpu.registers.is_set_flag(flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_dec_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 2;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+        }
+
+        #[test]
+        fn should_dec_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.b = 2;
+            cpu.bus.write8(0, 5);
+            // DEC B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.b, 1);
+        }
+
+        #[test]
+        fn should_dec_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.c = 2;
+            cpu.bus.write8(0, 1 << 3 | 5);
+            // DEC C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.c, 1);
+        }
+
+        #[test]
+        fn should_dec_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.d = 2;
+            cpu.bus.write8(0, 2 << 3 | 5);
+            // DEC D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.d, 1);
+        }
+
+        #[test]
+        fn should_dec_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.e = 2;
+            cpu.bus.write8(0, 3 << 3 | 5);
+            // DEC E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.e, 1);
+        }
+
+        #[test]
+        fn should_dec_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.h = 2;
+            cpu.bus.write8(0, 4 << 3 | 5);
+            // DEC H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.h, 1);
+        }
+
+        #[test]
+        fn should_dec_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.l = 2;
+            cpu.bus.write8(0, 5 << 3 | 5);
+            // DEC H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.l, 1);
+        }
+
+        #[test]
+        fn should_dec_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0xBEEF, 2);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 6 << 3 | 5);
+            // DEC (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.bus.read8(0xBEEF), 1);
+        }
+
+        #[test]
+        fn should_set_sign_flag_on_dec() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x0;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::SIGN));
+        }
+
+        #[test]
+        fn should_set_zero_flag_on_dec() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x1;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_set_half_carry_flag_on_dec() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x10;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_set_overflow_on_dec() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0x80;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::PARITY_OVERFLOW));
+        }
+
+        #[test]
+        fn should_reset_add_subtract_on_dec() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+            cpu.registers.a = 0xAB;
+            cpu.bus.write8(0, 7 << 3 | 5);
+            // DEC A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(cpu.registers.is_set_flag(flags::ADD_SUBTRACT));
         }
     }
 }
