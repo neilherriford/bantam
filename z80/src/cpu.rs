@@ -59,9 +59,8 @@ where
         let full = augend as u16 + addend as u16 + carry_in as u16;
         let sum = full as u8;
 
-        // If the addend and augend signs are the same but
-        // the sign of the sum is different, then we
-        // overflowed
+        // If the addend and augend signs are the same but the sign of
+        // the sum is different, then we overflowed
         let overflow = ((addend ^ sum) & (augend ^ sum) & 0x80) != 0;
         let half_carry = (augend & 0x0F) + (addend & 0x0F) + carry_in > 0x0F;
 
@@ -86,6 +85,46 @@ where
         let addend = self.read_indexed_register(addend_index);
 
         self.add_u8_and_set_flags(augend, addend, use_carry)
+    }
+
+    #[inline]
+    fn subtract_u8_and_set_flags(&mut self, minuend: u8, subtrahend: u8, use_borrow: bool) -> u8 {
+        let borrow_in: u8 = if use_borrow && self.registers.flag(flags::CARRY) {
+            1
+        } else {
+            0
+        };
+
+        let full = (minuend as u16).wrapping_sub(subtrahend as u16 + borrow_in as u16);
+        let difference = full as u8;
+
+        // If the inputs have different signs, but the difference
+        // has the same sign, then we overflowed
+        let overflow = ((minuend ^ subtrahend) & (minuend ^ difference) & 0x80) != 0;
+        let half_carry = (minuend & 0x0F) < ((subtrahend & 0x0F) + borrow_in);
+
+        self.registers.set_flag(flags::CARRY, full > 0xFF);
+        self.registers.set_flag(flags::ADD_SUBTRACT, true);
+        self.registers.set_flag(flags::PARITY_OVERFLOW, overflow);
+        self.registers.set_flag(flags::HALF_CARRY, half_carry);
+        self.registers.set_flag(flags::ZERO, difference == 0);
+        self.registers
+            .set_flag(flags::SIGN, is_set(difference, 0x80));
+
+        difference
+    }
+
+    #[inline]
+    fn subtract_u8_by_index_and_set_flags(
+        &mut self,
+        minuend_index: u8,
+        subtrahend_index: u8,
+        use_carry: bool,
+    ) -> u8 {
+        let minuend = self.read_indexed_register(minuend_index);
+        let subtrahend = self.read_indexed_register(subtrahend_index);
+
+        self.subtract_u8_and_set_flags(minuend, subtrahend, use_carry)
     }
 
     pub fn step(&mut self) {
@@ -321,6 +360,64 @@ where
                 let sum = self.add_u8_and_set_flags(self.registers.a, addend, true);
                 self.registers.a = sum
             }
+            (2, 2, register) => {
+                // SUB A, r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let difference =
+                    self.subtract_u8_by_index_and_set_flags(registers::index::A, register, false);
+                self.registers.a = difference;
+            }
+            (2, 3, register) => {
+                // SBC A, r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let difference =
+                    self.subtract_u8_by_index_and_set_flags(registers::index::A, register, true);
+                self.registers.a = difference;
+            }
+            (3, 2, 6) => {
+                // SUB A, n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let subtrahend = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                let difference =
+                    self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
+                self.registers.a = difference
+            }
+            (3, 3, 6) => {
+                // SBC A, n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let subtrahend = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                let difference = self.subtract_u8_and_set_flags(self.registers.a, subtrahend, true);
+                self.registers.a = difference
+            }
+            (2, 7, register) => {
+                // CP r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                self.subtract_u8_by_index_and_set_flags(registers::index::A, register, false);
+            }
+            (3, 7, 6) => {
+                // CP n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let subtrahend = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
+            }
+
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -515,6 +612,140 @@ mod tests {
                     true,
                 );
                 assert_eq!(3, actual);
+            }
+        }
+
+        mod subtract_u8_and_set_flags {
+            use crate::{
+                bus::{Bus, TestBus},
+                cpu::Cpu,
+                flags,
+                registers::{self, Registers},
+            };
+
+            #[test]
+            fn should_set_sign_flag() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.b = 3;
+                cpu.registers.c = 2;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(!cpu.registers.flag(flags::SIGN));
+
+                cpu.registers.b = 1;
+                cpu.registers.c = 2;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(cpu.registers.flag(flags::SIGN));
+            }
+
+            #[test]
+            fn should_set_zero_flag() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.b = 1;
+                cpu.registers.c = 2;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(!cpu.registers.flag(flags::ZERO));
+
+                cpu.registers.b = 1;
+                cpu.registers.c = 1;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(cpu.registers.flag(flags::ZERO));
+            }
+
+            #[test]
+            fn should_set_half_carry_flag() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.b = 0x0F;
+                cpu.registers.c = 0x0F;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(!cpu.registers.flag(flags::HALF_CARRY));
+
+                cpu.registers.b = 0x0E;
+                cpu.registers.c = 0x0F;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(cpu.registers.flag(flags::HALF_CARRY));
+            }
+
+            #[test]
+            fn should_set_overflow() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.b = 3;
+                cpu.registers.c = 2;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
+
+                cpu.registers.b = 0x50;
+                cpu.registers.c = 0xB0;
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+            }
+
+            #[test]
+            fn should_set_add_subtract() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.set_flag(flags::ADD_SUBTRACT, false);
+
+                cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    false,
+                );
+                assert!(cpu.registers.flag(flags::ADD_SUBTRACT));
+            }
+
+            #[test]
+            fn should_use_borrow_in() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.set_flag(flags::CARRY, true);
+                cpu.registers.b = 1;
+                cpu.registers.c = 2;
+                let actual = cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    true,
+                );
+                assert_eq!(0xFE, actual);
+
+                cpu.registers.b = 1;
+                cpu.registers.c = 2;
+                cpu.registers.set_flag(flags::CARRY, false);
+                let actual = cpu.subtract_u8_by_index_and_set_flags(
+                    registers::index::B,
+                    registers::index::C,
+                    true,
+                );
+                assert_eq!(0xFF, actual);
             }
         }
     }
@@ -1497,6 +1728,375 @@ mod tests {
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 4);
+        }
+
+        #[test]
+        fn should_sub_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 7);
+            // SUB A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0);
+        }
+
+        #[test]
+        fn should_sub_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.b = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3);
+            // SUB A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.c = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 1);
+            // SUB A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.d = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 2);
+            // SUB A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.e = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 3);
+            // SUB A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.h = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 4);
+            // SUB A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.l = 2;
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 5);
+            // SUB A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sub_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0xBEEF, 2);
+            cpu.bus.write8(0, 2 << 6 | 2 << 3 | 6);
+            // SUB A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sbc_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 7);
+            // SUB A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sbc_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.b = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3);
+            // SUB A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.c = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 1);
+            // SUB A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.d = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 2);
+            // SUB A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.e = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 3);
+            // SUB A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.h = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 4);
+            // SUB A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.l = 2;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 5);
+            // SUB A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sbc_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0xBEEF, 2);
+            cpu.bus.write8(0, 2 << 6 | 3 << 3 | 6);
+            // SUB A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_sub_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.bus.write8(0, 3 << 6 | 2 << 3  | 6);
+            cpu.bus.write8(1, 2);
+            // SUB A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+        }
+
+        #[test]
+        fn should_sbc_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0, 3 << 6 | 3 << 3 | 6);
+            cpu.bus.write8(1, 2);
+            // SBC A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFE);
+        }
+
+        #[test]
+        fn should_cp_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 7);
+            // CP A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.b = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3);
+            // CP A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.c = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 1);
+            // CP A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.d = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 2);
+            // CP A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.e = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 3);
+            // CP A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.h = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 4);
+            // CP A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.l = 1;
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 5);
+            // CP A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0xBEEF, 1);
+            cpu.bus.write8(0, 2 << 6 | 7 << 3 | 6);
+            // CP A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_cp_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 1;
+            cpu.bus.write8(0, 3 << 6 | 7 << 3 | 6);
+            cpu.bus.write8(1, 1);
+            // CP A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::ZERO));
         }
     }
 }
