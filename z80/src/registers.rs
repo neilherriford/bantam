@@ -1,5 +1,16 @@
 use crate::flags::is_bit_set;
 
+pub mod index {
+    pub const A: u8 = 7;
+    pub const B: u8 = 0;
+    pub const C: u8 = 1;
+    pub const D: u8 = 2;
+    pub const E: u8 = 3;
+    pub const H: u8 = 4;
+    pub const L: u8 = 5;
+    pub const HL: u8 = 6;
+}
+
 pub struct Registers {
     pub w: u8, // Temporary
     pub z: u8, // Temporary
@@ -135,7 +146,7 @@ impl Registers {
         }
     }
 
-    pub fn is_set_flag(&self, index: u8) -> bool {
+    pub fn flag(&self, index: u8) -> bool {
         is_bit_set(self.f, index)
     }
 }
