@@ -417,9 +417,82 @@ where
                 self.registers.increment_pc();
                 self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
             }
+            (2, 4, register) => {
+                // AND r
+                self.registers.increment_pc();
+                self.registers.increment_r();
 
+                let value = self.read_indexed_register(register);
+                self.registers.a &= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, true);
+            }
+            (2, 6, register) => {
+                // OR r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let value = self.read_indexed_register(register);
+                self.registers.a |= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, false);
+            }
+            (2, 5, register) => {
+                // XOR r
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let value = self.read_indexed_register(register);
+                self.registers.a ^= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, false);
+            }
+            (3, 4, 6) => {
+                // AND n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let value = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                self.registers.a &= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, true);
+            }
+            (3, 6, 6) => {
+                // OR n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let value = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                self.registers.a |= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, false);
+            }
+            (3, 5, 6) => {
+                // XOR n
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let value = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+
+                self.registers.a ^= value;
+                self.set_boolean_operator_flags(self.registers.a);
+                self.registers.set_flag(flags::HALF_CARRY, false);
+            }
             _ => panic!("Unsupported instruction"),
         }
+    }
+
+    fn set_boolean_operator_flags(&mut self, value: u8) {
+        self.set_zero_and_sign_flags_for_u8(value);
+        self.registers.set_flag(flags::CARRY, false);
+        self.registers.set_flag(flags::ADD_SUBTRACT, false);
+        self.registers
+            .set_flag(flags::PARITY_OVERFLOW, value.count_ones().is_multiple_of(2));
     }
 
     fn set_zero_and_sign_flags_for_u8(&mut self, value: u8) {
@@ -746,6 +819,60 @@ mod tests {
                     true,
                 );
                 assert_eq!(0xFF, actual);
+            }
+        }
+
+        mod set_boolean_operator_flags {
+            use crate::{
+                bus::{Bus, TestBus},
+                cpu::Cpu,
+                flags,
+                registers::{self, Registers},
+            };
+
+            #[test]
+            fn should_set_zero() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.set_boolean_operator_flags(0);
+                assert!(cpu.registers.flag(flags::ZERO));
+                cpu.set_boolean_operator_flags(1);
+                assert!(!cpu.registers.flag(flags::ZERO));
+            }
+
+            #[test]
+            fn should_set_sign() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.set_boolean_operator_flags(0x80);
+                assert!(cpu.registers.flag(flags::SIGN));
+                cpu.set_boolean_operator_flags(0x7F);
+                assert!(!cpu.registers.flag(flags::SIGN));
+            }
+
+            #[test]
+            fn should_set_carry() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.set_flag(flags::CARRY, true);
+                cpu.set_boolean_operator_flags(0);
+                assert!(!cpu.registers.flag(flags::CARRY));
+            }
+
+            #[test]
+            fn should_set_add_subtract() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+                cpu.set_boolean_operator_flags(0);
+                assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+            }
+
+            #[test]
+            fn should_set_parity() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.set_boolean_operator_flags(3);
+                assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+
+                cpu.registers.set_flag(flags::ADD_SUBTRACT, false);
+                cpu.set_boolean_operator_flags(1);
+                assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
             }
         }
     }
@@ -2097,6 +2224,393 @@ mod tests {
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
             assert!(cpu.registers.flag(flags::ZERO));
+        }
+
+        #[test]
+        fn should_and_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 7);
+            cpu.bus.write8(1, 1);
+            // AND A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xAA);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.b = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3);
+            cpu.bus.write8(1, 1);
+            // AND A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.c = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 1);
+            cpu.bus.write8(1, 1);
+            // AND A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.d = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 2);
+            // AND A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.e = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 3);
+            // AND A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.h = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 4);
+            // AND A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.l = 0x0F;
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 5);
+            // AND A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 2 << 6 | 4 << 3 | 6);
+            cpu.bus.write8(0xBEEF, 0x0F);
+            // AND A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 7);
+            cpu.bus.write8(1, 1);
+            // OR A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xAA);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.b = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3);
+            cpu.bus.write8(1, 1);
+            // OR A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.c = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 1);
+            cpu.bus.write8(1, 1);
+            // OR A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.d = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 2);
+            // OR A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.e = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 3);
+            // OR A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.h = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 4);
+            // OR A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.l = 0x55;
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 5);
+            // OR A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 2 << 6 | 6 << 3 | 6);
+            cpu.bus.write8(0xBEEF, 0x55);
+            // OR A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 7);
+            cpu.bus.write8(1, 1);
+            // XOR A, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.b = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3);
+            cpu.bus.write8(1, 1);
+            // XOR A, B
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.c = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 1);
+            cpu.bus.write8(1, 1);
+            // XOR A, C
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.d = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 2);
+            // XOR A, D
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.e = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 3);
+            // XOR A, E
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.h = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 4);
+            // XOR A, H
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.l = 0xFF;
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 5);
+            // XOR A, L
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 2 << 6 | 5 << 3 | 6);
+            cpu.bus.write8(0xBEEF, 0xFF);
+            // XOR A, (HL)
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_and_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 6);
+            cpu.bus.write8(1, 0x0F);
+            // AND A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0A);
+            assert!(cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_or_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 3 << 6 | 6 << 3 | 6);
+            cpu.bus.write8(1, 0x55);
+            // OR A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0xFF);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_xor_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xAA;
+            cpu.bus.write8(0, 3 << 6 | 5 << 3 | 6);
+            cpu.bus.write8(1, 0xFF);
+            // OR A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(!cpu.registers.flag(flags::HALF_CARRY));
         }
     }
 }
