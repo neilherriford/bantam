@@ -88,6 +88,24 @@ where
     }
 
     #[inline]
+    fn add_u16_and_set_flags(&mut self, augend: u16, addend: u16, use_carry: bool) -> u16 {
+        let carry_in: u8 = if use_carry && self.registers.flag(flags::CARRY) {
+            1
+        } else {
+            0
+        };
+
+        let full = augend as u32 + addend as u32 + carry_in as u32;
+        let sum = full as u16;
+        let half_carry = (augend & 0x0FFF) + (addend & 0x0FFF) + (carry_in as u16) > 0x0FFF;
+
+        self.registers.set_flag(flags::CARRY, full > 0xFFFF);
+        self.registers.set_flag(flags::ADD_SUBTRACT, false);
+        self.registers.set_flag(flags::HALF_CARRY, half_carry);
+        sum
+    }
+
+    #[inline]
     fn subtract_u8_and_set_flags(&mut self, minuend: u8, subtrahend: u8, use_borrow: bool) -> u8 {
         let borrow_in: u8 = if use_borrow && self.registers.flag(flags::CARRY) {
             1
@@ -483,6 +501,21 @@ where
                 self.set_boolean_operator_flags(self.registers.a);
                 self.registers.set_flag(flags::HALF_CARRY, false);
             }
+            (0, pair @ (1 | 3 | 5 | 7), 1) => {
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let addend = match pair {
+                    1 => self.registers.bc(),
+                    3 => self.registers.de(),
+                    5 => self.registers.hl(),
+                    7 => self.registers.sp,
+                    _ => unreachable!(),
+                };
+
+                let sum = self.add_u16_and_set_flags(self.registers.hl(), addend, false);
+                self.registers.set_hl(sum);
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -873,6 +906,39 @@ mod tests {
                 cpu.registers.set_flag(flags::ADD_SUBTRACT, false);
                 cpu.set_boolean_operator_flags(1);
                 assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
+            }
+        }
+
+        mod add_u16_and_set_flags {
+            use crate::{
+                bus::{Bus, TestBus},
+                cpu::Cpu,
+                flags,
+                registers::{self, Registers},
+            };
+
+            #[test]
+            fn should_set_carry() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.add_u16_and_set_flags(0xFFFF, 1, false);
+                assert!(cpu.registers.flag(flags::CARRY));
+            }
+
+            #[test]
+            fn should_set_add_subtract() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+                cpu.add_u16_and_set_flags(0xFFFF, 1, false);
+                assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+            }
+
+            #[test]
+            fn should_set_half_carry() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.add_u16_and_set_flags(0x0FFF, 0x001, false);
+                assert!(cpu.registers.flag(flags::HALF_CARRY));
+                cpu.add_u16_and_set_flags(1, 1, false);
+                assert!(!cpu.registers.flag(flags::HALF_CARRY));
             }
         }
     }
@@ -2611,6 +2677,61 @@ mod tests {
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
             assert!(!cpu.registers.flag(flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_add_hl_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x5F78);
+            cpu.registers.set_bc(0x5F77);
+            cpu.bus.write8(0, 1 << 3 | 1);
+
+            // ADD HL BC
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_add_hl_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x5F78);
+            cpu.registers.set_de(0x5F77);
+            cpu.bus.write8(0, 3 << 3 | 1);
+
+            // ADD HL DE
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_add_hl_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x657F);
+            cpu.bus.write8(0, 5 << 3 | 1);
+
+            // ADD HL HL
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.hl(), 0xCAFE);
+        }
+
+        #[test]
+        fn should_add_hl_sp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0x5F78);
+            cpu.registers.sp = 0x5F77;
+            cpu.bus.write8(0, 7 << 3 | 1);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
         }
     }
 }
