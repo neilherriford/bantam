@@ -5,6 +5,11 @@ use crate::{
     registers::{self, Registers},
 };
 
+fn wrapping_offset_u16(addend: u16, signed_aguend: u8) -> u16 {
+    let signed_offset = (signed_aguend as i8) as i16;
+    addend.wrapping_add_signed(signed_offset)
+}
+
 pub struct Cpu<B: Bus> {
     pub registers: Registers,
     pub bus: B,
@@ -502,6 +507,7 @@ where
                 self.registers.set_flag(flags::HALF_CARRY, false);
             }
             (0, pair @ (1 | 3 | 5 | 7), 1) => {
+                // ADD HL, s
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
@@ -515,6 +521,78 @@ where
 
                 let sum = self.add_u16_and_set_flags(self.registers.hl(), addend, false);
                 self.registers.set_hl(sum);
+            }
+            (3, 0, 3) => {
+                // JP nn
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let low_byte = self.bus.read8(self.registers.pc) as u16;
+                self.registers.increment_pc();
+                let high_byte = self.bus.read8(self.registers.pc) as u16;
+
+                let address = (high_byte << 8) | low_byte;
+                self.registers.pc = address;
+            }
+            (0, 3, 0) => {
+                // JR e
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let offset = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
+            }
+            (0, 4, 0) => {
+                // JR NZ, e
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let offset = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                if !self.registers.flag(flags::ZERO) {
+                    self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
+                }
+            }
+            (0, 5, 0) => {
+                // JR Z, e
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let offset = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                if self.registers.flag(flags::ZERO) {
+                    self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
+                }
+            }
+            (0, 6, 0) => {
+                // JR NC, e
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let offset = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                if !self.registers.flag(flags::CARRY) {
+                    self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
+                }
+            }
+            (0, 7, 0) => {
+                // JR C, e
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let offset = self.bus.read8(self.registers.pc);
+                self.registers.increment_pc();
+                if self.registers.flag(flags::CARRY) {
+                    self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
+                }
+            }
+            (3, 5, 1) => {
+                // JP (HL)
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                self.registers.pc = self.registers.hl()
             }
             _ => panic!("Unsupported instruction"),
         }
@@ -2143,7 +2221,7 @@ mod tests {
         fn should_sub_a_n() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.bus.write8(0, 3 << 6 | 2 << 3  | 6);
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 6);
             cpu.bus.write8(1, 2);
             // SUB A, n
             cpu.step();
@@ -2732,6 +2810,159 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_jp_nn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 3);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+
+            // JP nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jr_e_forward() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 3);
+            cpu.bus.write8(1, 40);
+
+            // JR e
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 42);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jr_e_backwards() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 3);
+            cpu.bus.write8(1, 0xFD);
+
+            // JR e
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(0xBEEF);
+            cpu.bus.write8(0, 3 << 6 | 5 << 3 | 1);
+
+            // JP HL
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_z_n_if_z_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 5 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::ZERO, true);
+
+            // JP Z n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_z_n_if_z_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 5 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::ZERO, false);
+
+            // JP Z n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_nz_n_if_z_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::ZERO, true);
+
+            // JP NZ n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_nz_n_if_z_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::ZERO, false);
+
+            // JP NZ n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_c_n_if_c_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // JP C n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_c_n_if_c_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // JP C n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_nc_n_if_c_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 6 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // JP NC n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_nc_n_if_c_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 6 << 3);
+            cpu.bus.write8(1, 0xFD);
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // JP NC n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
         }
     }
 }
