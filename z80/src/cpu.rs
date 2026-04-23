@@ -594,6 +594,33 @@ where
 
                 self.registers.pc = self.registers.hl()
             }
+            (3, condition, 2) => {
+                // JP c nn
+
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let low_byte = self.bus.read8(self.registers.pc) as u16;
+                self.registers.increment_pc();
+                let high_byte = self.bus.read8(self.registers.pc) as u16;
+                self.registers.increment_pc();
+
+                let should_jump = match condition {
+                    0 => !self.registers.flag(flags::ZERO),
+                    1 => self.registers.flag(flags::ZERO),
+                    2 => !self.registers.flag(flags::CARRY),
+                    3 => self.registers.flag(flags::CARRY),
+                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
+                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
+                    6 => !self.registers.flag(flags::SIGN),
+                    7 => self.registers.flag(flags::SIGN),
+                    _ => unreachable!(),
+                };
+
+                if should_jump {
+                    self.registers.pc = (high_byte << 8) | low_byte;
+                }
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -2962,6 +2989,230 @@ mod tests {
             // JP NC n
             cpu.step();
             assert_eq!(cpu.registers.pc, 0xFFFF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_nz_nn_if_z_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::ZERO, false);
+
+            // JP NZ nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_nz_nn_if_z_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::ZERO, true);
+
+            // JP NZ nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_z_nn_if_z_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 1 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::ZERO, false);
+
+            // JP NZ nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_z_nn_if_z_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 1 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::ZERO, true);
+
+            // JP NZ nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_nc_nn_if_c_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // JP NC nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_nc_nn_if_c_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // JP NC nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_c_nn_if_c_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 3 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // JP C nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_c_nn_if_c_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 3 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // JP C nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_no_nn_if_o_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+
+            // JP NO nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_no_nn_if_o_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+
+            // JP NO nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_o_nn_if_o_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 5 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+
+            // JP O nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_o_nn_if_o_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 5 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+
+            // JP O nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_ns_nn_if_s_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 6 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::SIGN, false);
+
+            // JP NS nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_ns_nn_if_s_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 6 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::SIGN, true);
+
+            // JP NS nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_jp_s_nn_if_s_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 7 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::SIGN, false);
+
+            // JP S nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 3);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_jp_s_nn_if_s_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 6 | 7 << 3 | 2);
+            cpu.bus.write8(1, 0xEF);
+            cpu.bus.write8(2, 0xBE);
+            cpu.registers.set_flag(flags::SIGN, true);
+
+            // JP S nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
             assert_eq!(cpu.registers.r, 1);
         }
     }
