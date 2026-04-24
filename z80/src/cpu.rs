@@ -653,6 +653,24 @@ where
                     self.ret();
                 }
             }
+            (3, address_shorthand, 7) => {
+                // RST p
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let address = match address_shorthand {
+                    0 => 0x00,
+                    1 => 0x08,
+                    2 => 0x10,
+                    3 => 0x18,
+                    4 => 0x20,
+                    5 => 0x28,
+                    6 => 0x30,
+                    7 => 0x38,
+                    _ => unreachable!(),
+                };
+                self.call(address);
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -3904,6 +3922,166 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 0xBEEF);
             assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_0() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 0
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_1() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x8);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_2() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x10);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_3() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x18);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_4() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x20);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_5() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x28);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_6() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x30);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_rst_7() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 7);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RST 1
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0x38);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xDF);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
 
             assert_eq!(cpu.registers.r, 1);
         }
