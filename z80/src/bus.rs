@@ -20,11 +20,11 @@ impl Default for TestBus {
 }
 
 impl Bus for TestBus {
-    fn read8(&mut self, offset: u16) -> u8 {
-        self.data[offset as usize]
+    fn read8(&mut self, address: u16) -> u8 {
+        self.data[address as usize]
     }
 
-    fn write8(&mut self, offset: u16, value: u8) {
-        self.data[offset as usize] = value
+    fn write8(&mut self, address: u16, value: u8) {
+        self.data[address as usize] = value
     }
 }

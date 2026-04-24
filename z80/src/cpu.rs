@@ -188,8 +188,7 @@ where
                 // LD r, n
                 self.registers.increment_pc();
                 self.registers.increment_r();
-                let value = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let value = self.read_at_pc();
                 self.write_indexed_register(register, value);
             }
             (0, op @ 0..=3, 2) => {
@@ -228,10 +227,8 @@ where
                 const HL: u8 = 0;
                 const WRITE: u8 = 0;
 
-                let low = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
-                let high = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let low = self.read_at_pc();
+                let high = self.read_at_pc();
 
                 let address = (high as u16) << 8 | low as u16;
 
@@ -261,10 +258,8 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let low = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
-                let high = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let low = self.read_at_pc();
+                let high = self.read_at_pc();
 
                 let value = ((high as u16) << 8) | low as u16;
                 match pair {
@@ -366,8 +361,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let addend = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let addend = self.read_at_pc();
 
                 let sum = self.add_u8_and_set_flags(self.registers.a, addend, false);
                 self.registers.a = sum
@@ -377,8 +371,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let addend = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let addend = self.read_at_pc();
 
                 let sum = self.add_u8_and_set_flags(self.registers.a, addend, true);
                 self.registers.a = sum
@@ -406,8 +399,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let subtrahend = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let subtrahend = self.read_at_pc();
 
                 let difference =
                     self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
@@ -418,8 +410,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let subtrahend = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let subtrahend = self.read_at_pc();
 
                 let difference = self.subtract_u8_and_set_flags(self.registers.a, subtrahend, true);
                 self.registers.a = difference
@@ -436,8 +427,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let subtrahend = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let subtrahend = self.read_at_pc();
                 self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
             }
             (2, 4, register) => {
@@ -475,8 +465,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let value = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let value = self.read_at_pc();
 
                 self.registers.a &= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -487,8 +476,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let value = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let value = self.read_at_pc();
 
                 self.registers.a |= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -499,8 +487,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let value = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let value = self.read_at_pc();
 
                 self.registers.a ^= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -527,11 +514,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let low_byte = self.bus.read8(self.registers.pc) as u16;
-                self.registers.increment_pc();
-                let high_byte = self.bus.read8(self.registers.pc) as u16;
-
-                let address = (high_byte << 8) | low_byte;
+                let address = self.read_16_at_pc();
                 self.registers.pc = address;
             }
             (0, 3, 0) => {
@@ -539,8 +522,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let offset = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let offset = self.read_at_pc();
                 self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
             }
             (0, 4, 0) => {
@@ -548,8 +530,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let offset = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let offset = self.read_at_pc();
                 if !self.registers.flag(flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
@@ -559,8 +540,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let offset = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let offset = self.read_at_pc();
                 if self.registers.flag(flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
@@ -570,8 +550,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let offset = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let offset = self.read_at_pc();
                 if !self.registers.flag(flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
@@ -581,8 +560,7 @@ where
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let offset = self.bus.read8(self.registers.pc);
-                self.registers.increment_pc();
+                let offset = self.read_at_pc();
                 if self.registers.flag(flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
@@ -596,14 +574,10 @@ where
             }
             (3, condition, 2) => {
                 // JP c nn
-
                 self.registers.increment_pc();
                 self.registers.increment_r();
 
-                let low_byte = self.bus.read8(self.registers.pc) as u16;
-                self.registers.increment_pc();
-                let high_byte = self.bus.read8(self.registers.pc) as u16;
-                self.registers.increment_pc();
+                let jump_address = self.read_16_at_pc();
 
                 let should_jump = match condition {
                     0 => !self.registers.flag(flags::ZERO),
@@ -618,13 +592,72 @@ where
                 };
 
                 if should_jump {
-                    self.registers.pc = (high_byte << 8) | low_byte;
+                    self.registers.pc = jump_address;
+                }
+            }
+            (3, 1, 5) => {
+                // CALL nn
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let address = self.read_16_at_pc();
+                self.call(address);
+            }
+            (3, condition, 4) => {
+                // CALL c nn
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let address = self.read_16_at_pc();
+                let should_call = match condition {
+                    0 => !self.registers.flag(flags::ZERO),
+                    1 => self.registers.flag(flags::ZERO),
+                    2 => !self.registers.flag(flags::CARRY),
+                    3 => self.registers.flag(flags::CARRY),
+                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
+                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
+                    6 => !self.registers.flag(flags::SIGN),
+                    7 => self.registers.flag(flags::SIGN),
+                    _ => unreachable!(),
+                };
+
+                if should_call {
+                    self.call(address);
+                }
+            }
+            (3, 1, 1) => {
+                // RET
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                self.ret();
+            }
+            (3, condition, 0) => {
+                // RET c
+                self.registers.increment_pc();
+                self.registers.increment_r();
+
+                let should_ret = match condition {
+                    0 => !self.registers.flag(flags::ZERO),
+                    1 => self.registers.flag(flags::ZERO),
+                    2 => !self.registers.flag(flags::CARRY),
+                    3 => self.registers.flag(flags::CARRY),
+                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
+                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
+                    6 => !self.registers.flag(flags::SIGN),
+                    7 => self.registers.flag(flags::SIGN),
+                    _ => unreachable!(),
+                };
+
+                if should_ret {
+                    self.ret();
                 }
             }
             _ => panic!("Unsupported instruction"),
         }
     }
 
+    #[inline]
     fn set_boolean_operator_flags(&mut self, value: u8) {
         self.set_zero_and_sign_flags_for_u8(value);
         self.registers.set_flag(flags::CARRY, false);
@@ -633,9 +666,48 @@ where
             .set_flag(flags::PARITY_OVERFLOW, value.count_ones().is_multiple_of(2));
     }
 
+    #[inline]
     fn set_zero_and_sign_flags_for_u8(&mut self, value: u8) {
         self.registers.set_flag(flags::ZERO, value == 0);
         self.registers.set_flag(flags::SIGN, is_set(value, 0x80));
+    }
+
+    #[inline]
+    fn read_at_pc(&mut self) -> u8 {
+        let result = self.bus.read8(self.registers.pc);
+        self.registers.increment_pc();
+        result
+    }
+
+    #[inline]
+    fn read_16_at_pc(&mut self) -> u16 {
+        let low_byte = self.read_at_pc() as u16;
+        let high_byte = self.read_at_pc() as u16;
+        (high_byte << 8) | low_byte
+    }
+
+    #[inline]
+    fn stack_push(&mut self, value: u16) {
+        let [high_byte, low_byte] = value.to_be_bytes();
+
+        self.registers.sp = self.registers.sp.wrapping_sub(2);
+        self.bus.write8(self.registers.sp, low_byte);
+        self.bus
+            .write8(self.registers.sp.wrapping_add(1), high_byte);
+    }
+
+    #[inline]
+    fn call(&mut self, address: u16) {
+        self.stack_push(self.registers.pc);
+        self.registers.pc = address;
+    }
+
+    #[inline]
+    fn ret(&mut self) {
+        let low_byte = self.bus.read8(self.registers.sp) as u16;
+        let high_byte = self.bus.read8(self.registers.sp.wrapping_add(1)) as u16;
+        self.registers.sp = self.registers.sp.wrapping_add(2);
+        self.registers.pc = (high_byte << 8) | low_byte
     }
 }
 
@@ -3213,6 +3285,626 @@ mod tests {
             // JP S nn
             cpu.step();
             assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_nn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 5);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_nz_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_nz_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_z_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_z_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_nc_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nc nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_nc_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL nc nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_c_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL c nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_c_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL c nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_np_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL np nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_np_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL np nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_p_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL p nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_p_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL p nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_ns_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL ns nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_ns_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL ns nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_call_s_nn_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL s nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0E1);
+            assert_eq!(cpu.registers.sp, 0xDEAF);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_call_s_nn_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAF;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 4);
+            cpu.bus.write8(0xC0DF, 0xEF);
+            cpu.bus.write8(0xC0E0, 0xBE);
+
+            // CALL s nn
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.bus.read8(cpu.registers.sp), 0xE1);
+            assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 1);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_nz_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.bus.write8(0xC0DE, 3 << 6);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET nz
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_nz_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.bus.write8(0xC0DE, 3 << 6);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET nz
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_z_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET z
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_z_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET z
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_nc_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET nc
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_nc_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET nc
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_c_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET c
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_c_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET c
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_np_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET np
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_np_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET np
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_p_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET p
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_p_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET p
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_c_ns_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET ns
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_c_ns_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET ns
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_not_ret_d_s_when_unset() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET s
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xC0DF);
+            assert_eq!(cpu.registers.sp, 0xDEAB);
+
+            assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_ret_d_s_when_set() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            // RET s
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+
             assert_eq!(cpu.registers.r, 1);
         }
     }
