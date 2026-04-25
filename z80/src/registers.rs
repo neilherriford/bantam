@@ -190,6 +190,12 @@ impl Registers {
         }
     }
 
+    pub fn set_flags(&mut self, bit_and_value: &[(u8, bool)]) {
+        for (bit, value) in bit_and_value {
+            self.set_flag(*bit, *value);
+        }
+    }
+
     pub fn flag(&self, index: u8) -> bool {
         is_bit_set(self.f, index)
     }

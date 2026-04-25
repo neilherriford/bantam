@@ -75,12 +75,14 @@ where
         let overflow = ((addend ^ sum) & (augend ^ sum) & 0x80) != 0;
         let half_carry = (augend & 0x0F) + (addend & 0x0F) + carry_in > 0x0F;
 
-        self.registers.set_flag(flags::CARRY, full > 0xFF);
-        self.registers.set_flag(flags::ADD_SUBTRACT, false);
-        self.registers.set_flag(flags::PARITY_OVERFLOW, overflow);
-        self.registers.set_flag(flags::HALF_CARRY, half_carry);
-        self.registers.set_flag(flags::ZERO, sum == 0);
-        self.registers.set_flag(flags::SIGN, is_set(sum, 0x80));
+        self.registers.set_flags(&[
+            (flags::CARRY, full > 0xFF),
+            (flags::ADD_SUBTRACT, false),
+            (flags::PARITY_OVERFLOW, overflow),
+            (flags::HALF_CARRY, half_carry),
+            (flags::ZERO, sum == 0),
+            (flags::SIGN, is_set(sum, 0x80)),
+        ]);
 
         sum
     }
@@ -110,9 +112,12 @@ where
         let sum = full as u16;
         let half_carry = (augend & 0x0FFF) + (addend & 0x0FFF) + (carry_in as u16) > 0x0FFF;
 
-        self.registers.set_flag(flags::CARRY, full > 0xFFFF);
-        self.registers.set_flag(flags::ADD_SUBTRACT, false);
-        self.registers.set_flag(flags::HALF_CARRY, half_carry);
+        self.registers.set_flags(&[
+            (flags::CARRY, full > 0xFFFF),
+            (flags::ADD_SUBTRACT, false),
+            (flags::HALF_CARRY, half_carry),
+        ]);
+
         sum
     }
 
@@ -132,13 +137,14 @@ where
         let overflow = ((minuend ^ subtrahend) & (minuend ^ difference) & 0x80) != 0;
         let half_carry = (minuend & 0x0F) < ((subtrahend & 0x0F) + borrow_in);
 
-        self.registers.set_flag(flags::CARRY, full > 0xFF);
-        self.registers.set_flag(flags::ADD_SUBTRACT, true);
-        self.registers.set_flag(flags::PARITY_OVERFLOW, overflow);
-        self.registers.set_flag(flags::HALF_CARRY, half_carry);
-        self.registers.set_flag(flags::ZERO, difference == 0);
-        self.registers
-            .set_flag(flags::SIGN, is_set(difference, 0x80));
+        self.registers.set_flags(&[
+            (flags::CARRY, full > 0xFF),
+            (flags::ADD_SUBTRACT, true),
+            (flags::PARITY_OVERFLOW, overflow),
+            (flags::HALF_CARRY, half_carry),
+            (flags::ZERO, difference == 0),
+            (flags::SIGN, is_set(difference, 0x80)),
+        ]);
 
         difference
     }
@@ -305,13 +311,13 @@ where
                 let after = before.wrapping_add(1);
                 self.write_indexed_register(register, after);
 
-                self.registers.set_flag(flags::ADD_SUBTRACT, false);
-                self.registers
-                    .set_flag(flags::PARITY_OVERFLOW, before == 0x7F);
-                self.registers
-                    .set_flag(flags::HALF_CARRY, is_set(before, 0x0F));
-                self.registers.set_flag(flags::ZERO, after == 0);
-                self.registers.set_flag(flags::SIGN, is_set(after, 0x80));
+                self.registers.set_flags(&[
+                    (flags::ADD_SUBTRACT, false),
+                    (flags::PARITY_OVERFLOW, before == 0x7F),
+                    (flags::HALF_CARRY, is_set(before, 0x0F)),
+                    (flags::ZERO, after == 0),
+                    (flags::SIGN, is_set(after, 0x80)),
+                ]);
             }
             (0, register, 5) => {
                 // DEC r
@@ -320,11 +326,12 @@ where
                 let after = before.wrapping_sub(1);
                 self.write_indexed_register(register, after);
 
-                self.registers.set_flag(flags::ADD_SUBTRACT, true);
-                self.registers
-                    .set_flag(flags::PARITY_OVERFLOW, before == 0x80);
-                self.registers
-                    .set_flag(flags::HALF_CARRY, before & 0x0F == 0x00);
+                self.registers.set_flags(&[
+                    (flags::ADD_SUBTRACT, true),
+                    (flags::PARITY_OVERFLOW, before == 0x80),
+                    (flags::HALF_CARRY, before & 0x0F == 0x00),
+                ]);
+
                 self.set_zero_and_sign_flags_for_u8(after);
             }
             (2, 0, register) => {
@@ -651,6 +658,57 @@ where
                 self.bus.write8(self.registers.sp, l);
                 self.bus.write8(high_offset, h);
             }
+            (0, 0, 7) => {
+                // RLCA
+                self.advance();
+                self.registers.a = self.registers.a.rotate_left(1);
+                self.registers.set_flags(&[
+                    (flags::CARRY, is_set(self.registers.a, 1)),
+                    (flags::HALF_CARRY, false),
+                    (flags::ADD_SUBTRACT, false),
+                ]);
+            }
+            (0, 1, 7) => {
+                // RRCA
+                self.advance();
+                self.registers.a = self.registers.a.rotate_right(1);
+                self.registers.set_flags(&[
+                    (flags::CARRY, is_set(self.registers.a, 0x80)),
+                    (flags::HALF_CARRY, false),
+                    (flags::ADD_SUBTRACT, false),
+                ]);
+            }
+            (0, 2, 7) => {
+                // RLA
+                self.advance();
+                let old_carry = self.registers.flag(flags::CARRY);
+                let new_carry = is_set(self.registers.a, 0x80);
+
+                self.registers.a <<= 1;
+                self.registers.set_flags(&[
+                    (flags::CARRY, new_carry),
+                    (flags::HALF_CARRY, false),
+                    (flags::ADD_SUBTRACT, false),
+                ]);
+                if old_carry {
+                    self.registers.a |= 1
+                }
+            }
+            (0, 3, 7) => {
+                // RRA
+                self.advance();
+                let old_carry = self.registers.flag(flags::CARRY);
+                let new_carry = is_set(self.registers.a, 1);
+                self.registers.a >>= 1;
+                self.registers.set_flags(&[
+                    (flags::CARRY, new_carry),
+                    (flags::HALF_CARRY, false),
+                    (flags::ADD_SUBTRACT, false),
+                ]);
+                if old_carry {
+                    self.registers.a |= 0x80
+                }
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -658,16 +716,19 @@ where
     #[inline]
     fn set_boolean_operator_flags(&mut self, value: u8) {
         self.set_zero_and_sign_flags_for_u8(value);
-        self.registers.set_flag(flags::CARRY, false);
-        self.registers.set_flag(flags::ADD_SUBTRACT, false);
-        self.registers
-            .set_flag(flags::PARITY_OVERFLOW, value.count_ones().is_multiple_of(2));
+        self.registers.set_flags(&[
+            (flags::CARRY, false),
+            (flags::ADD_SUBTRACT, false),
+            (flags::PARITY_OVERFLOW, value.count_ones().is_multiple_of(2)),
+        ]);
     }
 
     #[inline]
     fn set_zero_and_sign_flags_for_u8(&mut self, value: u8) {
-        self.registers.set_flag(flags::ZERO, value == 0);
-        self.registers.set_flag(flags::SIGN, is_set(value, 0x80));
+        self.registers.set_flags(&[
+            (flags::ZERO, value == 0),
+            (flags::SIGN, is_set(value, 0x80)),
+        ]);
     }
 
     #[inline]
@@ -4166,9 +4227,75 @@ mod tests {
             // EX (SP) HL
             cpu.step();
 
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.bus.read8(0xC0DE), 0xDE);
             assert_eq!(cpu.bus.read8(0xC0DF), 0xAD);
             assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_rlca() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7);
+            cpu.registers.a = 0x80;
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // RLCA
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(cpu.registers.flag(flags::CARRY));
+        }
+
+        #[test]
+        fn should_rrca() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 1 << 3 | 7);
+            cpu.registers.a = 3;
+            cpu.registers.set_flag(flags::CARRY, false);
+
+            // RRCA
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x81);
+            assert!(cpu.registers.flag(flags::CARRY));
+        }
+
+        #[test]
+        fn should_rla() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 2 << 3 | 7);
+            cpu.registers.a = 1;
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // RLA
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 3);
+            assert!(!cpu.registers.flag(flags::CARRY));
+        }
+
+        #[test]
+        fn should_rra() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 3 << 3 | 7);
+            cpu.registers.a = 1;
+            cpu.registers.set_flag(flags::CARRY, true);
+
+            // RRA
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x80);
+            assert!(cpu.registers.flag(flags::CARRY));
         }
     }
 }
