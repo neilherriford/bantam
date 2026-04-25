@@ -5,8 +5,8 @@ use crate::{
     registers::{self, Registers},
 };
 
-fn wrapping_offset_u16(addend: u16, signed_aguend: u8) -> u16 {
-    let signed_offset = (signed_aguend as i8) as i16;
+fn wrapping_offset_u16(addend: u16, signed_augend: u8) -> u16 {
+    let signed_offset = (signed_augend as i8) as i16;
     addend.wrapping_add_signed(signed_offset)
 }
 
@@ -610,7 +610,47 @@ where
                 let port = (self.registers.a as u16) << 8 | (self.read_and_advance() as u16);
                 self.bus.write_io(port, self.registers.a);
             }
+            (3, 5, 3) => {
+                // EX DE, HL
+                self.advance();
+                let hl = self.registers.hl();
+                self.registers.set_hl(self.registers.de());
+                self.registers.set_de(hl);
+            }
+            (0, 1, 0) => {
+                // EX AF, AF'
+                self.advance();
+                let af = self.registers.af();
+                self.registers.set_af(self.registers.af_alt());
+                self.registers.set_af_alt(af);
+            }
+            (3, 3, 1) => {
+                // EXX
+                self.advance();
+                let bc = self.registers.bc();
+                let de = self.registers.de();
+                let hl = self.registers.hl();
 
+                self.registers.set_bc(self.registers.bc_alt());
+                self.registers.set_de(self.registers.de_alt());
+                self.registers.set_hl(self.registers.hl_alt());
+                self.registers.set_bc_alt(bc);
+                self.registers.set_de_alt(de);
+                self.registers.set_hl_alt(hl);
+            }
+            (3, 4, 3) => {
+                // EX (SP), HL
+                self.advance();
+                let l = self.registers.l;
+                let h = self.registers.h;
+
+                let high_offset = self.registers.sp.wrapping_add(1);
+                self.registers.l = self.bus.read8(self.registers.sp);
+                self.registers.h = self.bus.read8(high_offset);
+
+                self.bus.write8(self.registers.sp, l);
+                self.bus.write8(high_offset, h);
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -4055,6 +4095,80 @@ mod tests {
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 42);
             assert_eq!(cpu.bus.read_io(1), 42);
+        }
+
+        #[test]
+        fn should_ex_de_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(0xC0DE);
+            cpu.registers.set_hl(0xF00D);
+            cpu.bus.write8(0, 3 << 6 | 5 << 3 | 3);
+
+            // EX DE, HL
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.de(), 0xF00D);
+            assert_eq!(cpu.registers.hl(), 0xC0DE);
+        }
+
+        #[test]
+        fn should_ex_af_af_alt() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_af(0xCAFE);
+            cpu.registers.set_af_alt(0xD00D);
+            cpu.bus.write8(0, 1 << 3);
+
+            // EX AF, AF'
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.af(), 0xD00D);
+            assert_eq!(cpu.registers.af_alt(), 0xCAFE);
+        }
+
+        #[test]
+        fn should_exx() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(0xDEAD);
+            cpu.registers.set_de(0xBEEF);
+            cpu.registers.set_hl(0xCAFE);
+
+            cpu.registers.set_bc_alt(0xFEED);
+            cpu.registers.set_de_alt(0xFACE);
+            cpu.registers.set_hl_alt(0xF00D);
+
+            cpu.bus.write8(0, 3 << 6 | 3 << 3 | 1);
+
+            // EXX
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+
+            assert_eq!(cpu.registers.bc(), 0xFEED);
+            assert_eq!(cpu.registers.de(), 0xFACE);
+            assert_eq!(cpu.registers.hl(), 0xF00D);
+
+            assert_eq!(cpu.registers.bc_alt(), 0xDEAD);
+            assert_eq!(cpu.registers.de_alt(), 0xBEEF);
+            assert_eq!(cpu.registers.hl_alt(), 0xCAFE);
+        }
+
+        #[test]
+        fn should_ex_sp_hl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0xC0DE, 0xEF);
+            cpu.bus.write8(0xC0DF, 0xBE);
+            cpu.registers.sp = 0xC0DE;
+            cpu.registers.set_hl(0xADDE);
+            cpu.bus.write8(0, 3 << 6 | 4 << 3 | 3);
+
+            // EX (SP) HL
+            cpu.step();
+
+            assert_eq!(cpu.bus.read8(0xC0DE), 0xDE);
+            assert_eq!(cpu.bus.read8(0xC0DF), 0xAD);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
         }
     }
 }

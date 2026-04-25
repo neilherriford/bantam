@@ -104,38 +104,82 @@ impl Registers {
     pub fn wz(&self) -> u16 {
         ((self.w as u16) << 8) | (self.z as u16)
     }
+
     pub fn af(&self) -> u16 {
         ((self.a as u16) << 8) | (self.f as u16)
     }
+
+    pub fn af_alt(&self) -> u16 {
+        ((self.a_alt as u16) << 8) | (self.f_alt as u16)
+    }
+
     pub fn bc(&self) -> u16 {
         ((self.b as u16) << 8) | (self.c as u16)
     }
+
+    pub fn bc_alt(&self) -> u16 {
+        ((self.b_alt as u16) << 8) | (self.c_alt as u16)
+    }
+
     pub fn de(&self) -> u16 {
         ((self.d as u16) << 8) | (self.e as u16)
     }
+
+    pub fn de_alt(&self) -> u16 {
+        ((self.d_alt as u16) << 8) | (self.e_alt as u16)
+    }
+
     pub fn hl(&self) -> u16 {
         ((self.h as u16) << 8) | (self.l as u16)
+    }
+
+    pub fn hl_alt(&self) -> u16 {
+        ((self.h_alt as u16) << 8) | (self.l_alt as u16)
     }
 
     pub fn set_wz(&mut self, value: u16) {
         self.w = (value >> 8) as u8;
         self.z = (value & 0xFF) as u8;
     }
+
     pub fn set_af(&mut self, value: u16) {
         self.a = (value >> 8) as u8;
         self.f = (value & 0xFF) as u8;
     }
+
+    pub fn set_af_alt(&mut self, value: u16) {
+        self.a_alt = (value >> 8) as u8;
+        self.f_alt = (value & 0xFF) as u8;
+    }
+
     pub fn set_bc(&mut self, value: u16) {
         self.b = (value >> 8) as u8;
         self.c = (value & 0xFF) as u8;
     }
+
+    pub fn set_bc_alt(&mut self, value: u16) {
+        self.b_alt = (value >> 8) as u8;
+        self.c_alt = (value & 0xFF) as u8;
+    }
+
     pub fn set_de(&mut self, value: u16) {
         self.d = (value >> 8) as u8;
         self.e = (value & 0xFF) as u8;
     }
+
+    pub fn set_de_alt(&mut self, value: u16) {
+        self.d_alt = (value >> 8) as u8;
+        self.e_alt = (value & 0xFF) as u8;
+    }
+
     pub fn set_hl(&mut self, value: u16) {
         self.h = (value >> 8) as u8;
         self.l = (value & 0xFF) as u8;
+    }
+
+    pub fn set_hl_alt(&mut self, value: u16) {
+        self.h_alt = (value >> 8) as u8;
+        self.l_alt = (value & 0xFF) as u8;
     }
 
     pub fn set_flag(&mut self, bit: u8, value: bool) {
