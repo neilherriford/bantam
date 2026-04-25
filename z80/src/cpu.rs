@@ -286,18 +286,18 @@ where
                     _ => unreachable!(),
                 };
 
-                self.registers.decrement_sp();
+                self.registers.sp = self.registers.sp.wrapping_sub(1);
                 self.bus.write8(self.registers.sp, high);
-                self.registers.decrement_sp();
+                self.registers.sp = self.registers.sp.wrapping_sub(1);
                 self.bus.write8(self.registers.sp, low);
             }
             (3, pair @ (0 | 2 | 4 | 6), 1) => {
                 // POP rr
                 self.advance();
                 let low = self.bus.read8(self.registers.sp);
-                self.registers.increment_sp();
+                self.registers.sp = self.registers.sp.wrapping_add(1);
                 let high = self.bus.read8(self.registers.sp);
-                self.registers.increment_sp();
+                self.registers.sp = self.registers.sp.wrapping_add(1);
 
                 let value = ((high as u16) << 8) | low as u16;
                 match pair {
