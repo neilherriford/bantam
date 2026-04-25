@@ -24,6 +24,12 @@ where
     }
 
     #[inline]
+    fn advance(&mut self) {
+        self.registers.increment_pc();
+        self.registers.increment_r();
+    }
+
+    #[inline]
     fn read_indexed_register(&mut self, index: u8) -> u8 {
         match index {
             0 => self.registers.b,
@@ -154,8 +160,7 @@ where
         match decode::into_group_and_operands(self.bus.read8(self.registers.pc)) {
             (0, 0, 0) => {
                 // NOP
-                self.registers.increment_pc();
-                self.registers.increment_r();
+                self.advance();
             }
             (1, 6, 6) => {
                 // HALT
@@ -164,37 +169,31 @@ where
             }
             (3, 6, 3) => {
                 // DI
-                self.registers.increment_pc();
-                self.registers.increment_r();
+                self.advance();
                 self.registers.iff1 = false;
                 self.registers.iff2 = false;
             }
             (3, 7, 3) => {
                 // EI
-                self.registers.increment_pc();
-                self.registers.increment_r();
+                self.advance();
                 self.registers.iff1 = true;
                 self.registers.iff2 = true;
             }
             (1, dest, src) => {
                 // LD r, r'
                 // LD r, (HL)
-                self.registers.increment_pc();
-                self.registers.increment_r();
+                self.advance();
                 let value = self.read_indexed_register(src);
                 self.write_indexed_register(dest, value);
             }
             (0, register, 6) => {
                 // LD r, n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-                let value = self.read_at_pc();
+                self.advance();
+                let value = self.read_and_advance();
                 self.write_indexed_register(register, value);
             }
             (0, op @ 0..=3, 2) => {
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let operation = op & 1;
                 const BC: u8 = 0;
                 const WRITE: u8 = 0;
@@ -220,15 +219,13 @@ where
                 // LD HL, (nn)
                 // LD (nn), A
                 // LD A, (nn)
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let operation = op & 1;
                 const HL: u8 = 0;
                 const WRITE: u8 = 0;
 
-                let low = self.read_at_pc();
-                let high = self.read_at_pc();
+                let low = self.read_and_advance();
+                let high = self.read_and_advance();
 
                 let address = (high as u16) << 8 | low as u16;
 
@@ -255,11 +252,9 @@ where
                 // LD DE, nn
                 // LD HL, nn
                 // LD SP, nn
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let low = self.read_at_pc();
-                let high = self.read_at_pc();
+                self.advance();
+                let low = self.read_and_advance();
+                let high = self.read_and_advance();
 
                 let value = ((high as u16) << 8) | low as u16;
                 match pair {
@@ -272,9 +267,7 @@ where
             }
             (3, pair @ (0 | 2 | 4 | 6), 5) => {
                 // PUSH rr
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let (high, low) = match pair {
                     0 => (self.registers.b, self.registers.c),
                     2 => (self.registers.d, self.registers.e),
@@ -290,9 +283,7 @@ where
             }
             (3, pair @ (0 | 2 | 4 | 6), 1) => {
                 // POP rr
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let low = self.bus.read8(self.registers.sp);
                 self.registers.increment_sp();
                 let high = self.bus.read8(self.registers.sp);
@@ -309,9 +300,7 @@ where
             }
             (0, register, 4) => {
                 // INC r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let before = self.read_indexed_register(register);
                 let after = before.wrapping_add(1);
                 self.write_indexed_register(register, after);
@@ -326,9 +315,7 @@ where
             }
             (0, register, 5) => {
                 // DEC r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let before = self.read_indexed_register(register);
                 let after = before.wrapping_sub(1);
                 self.write_indexed_register(register, after);
@@ -342,64 +329,50 @@ where
             }
             (2, 0, register) => {
                 // ADD A. r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let sum = self.add_u8_by_index_and_set_flags(registers::index::A, register, false);
                 self.registers.a = sum;
             }
             (2, 1, register) => {
                 // ADC A. r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let sum = self.add_u8_by_index_and_set_flags(registers::index::A, register, true);
                 self.registers.a = sum;
             }
             (3, 0, 6) => {
                 // ADD A, n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let addend = self.read_at_pc();
+                self.advance();
+                let addend = self.read_and_advance();
 
                 let sum = self.add_u8_and_set_flags(self.registers.a, addend, false);
                 self.registers.a = sum
             }
             (3, 1, 6) => {
                 // ADC A, n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let addend = self.read_at_pc();
+                self.advance();
+                let addend = self.read_and_advance();
 
                 let sum = self.add_u8_and_set_flags(self.registers.a, addend, true);
                 self.registers.a = sum
             }
             (2, 2, register) => {
                 // SUB A, r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let difference =
                     self.subtract_u8_by_index_and_set_flags(registers::index::A, register, false);
                 self.registers.a = difference;
             }
             (2, 3, register) => {
                 // SBC A, r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let difference =
                     self.subtract_u8_by_index_and_set_flags(registers::index::A, register, true);
                 self.registers.a = difference;
             }
             (3, 2, 6) => {
                 // SUB A, n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let subtrahend = self.read_at_pc();
+                self.advance();
+                let subtrahend = self.read_and_advance();
 
                 let difference =
                     self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
@@ -407,34 +380,26 @@ where
             }
             (3, 3, 6) => {
                 // SBC A, n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let subtrahend = self.read_at_pc();
+                self.advance();
+                let subtrahend = self.read_and_advance();
 
                 let difference = self.subtract_u8_and_set_flags(self.registers.a, subtrahend, true);
                 self.registers.a = difference
             }
             (2, 7, register) => {
                 // CP r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 self.subtract_u8_by_index_and_set_flags(registers::index::A, register, false);
             }
             (3, 7, 6) => {
                 // CP n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let subtrahend = self.read_at_pc();
+                self.advance();
+                let subtrahend = self.read_and_advance();
                 self.subtract_u8_and_set_flags(self.registers.a, subtrahend, false);
             }
             (2, 4, register) => {
                 // AND r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let value = self.read_indexed_register(register);
                 self.registers.a &= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -442,9 +407,7 @@ where
             }
             (2, 6, register) => {
                 // OR r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let value = self.read_indexed_register(register);
                 self.registers.a |= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -452,9 +415,7 @@ where
             }
             (2, 5, register) => {
                 // XOR r
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let value = self.read_indexed_register(register);
                 self.registers.a ^= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -462,10 +423,8 @@ where
             }
             (3, 4, 6) => {
                 // AND n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let value = self.read_at_pc();
+                self.advance();
+                let value = self.read_and_advance();
 
                 self.registers.a &= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -473,10 +432,8 @@ where
             }
             (3, 6, 6) => {
                 // OR n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let value = self.read_at_pc();
+                self.advance();
+                let value = self.read_and_advance();
 
                 self.registers.a |= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -484,10 +441,8 @@ where
             }
             (3, 5, 6) => {
                 // XOR n
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let value = self.read_at_pc();
+                self.advance();
+                let value = self.read_and_advance();
 
                 self.registers.a ^= value;
                 self.set_boolean_operator_flags(self.registers.a);
@@ -495,9 +450,7 @@ where
             }
             (0, pair @ (1 | 3 | 5 | 7), 1) => {
                 // ADD HL, s
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let addend = match pair {
                     1 => self.registers.bc(),
                     3 => self.registers.de(),
@@ -511,73 +464,57 @@ where
             }
             (3, 0, 3) => {
                 // JP nn
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let address = self.read_16_at_pc();
+                self.advance();
+                let address = self.read_16_and_advance();
                 self.registers.pc = address;
             }
             (0, 3, 0) => {
                 // JR e
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let offset = self.read_at_pc();
+                self.advance();
+                let offset = self.read_and_advance();
                 self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
             }
             (0, 4, 0) => {
                 // JR NZ, e
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let offset = self.read_at_pc();
+                self.advance();
+                let offset = self.read_and_advance();
                 if !self.registers.flag(flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
             (0, 5, 0) => {
                 // JR Z, e
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let offset = self.read_at_pc();
+                self.advance();
+                let offset = self.read_and_advance();
                 if self.registers.flag(flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
             (0, 6, 0) => {
                 // JR NC, e
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let offset = self.read_at_pc();
+                self.advance();
+                let offset = self.read_and_advance();
                 if !self.registers.flag(flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
             (0, 7, 0) => {
                 // JR C, e
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let offset = self.read_at_pc();
+                self.advance();
+                let offset = self.read_and_advance();
                 if self.registers.flag(flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
             (3, 5, 1) => {
                 // JP (HL)
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 self.registers.pc = self.registers.hl()
             }
             (3, condition, 2) => {
                 // JP c nn
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let jump_address = self.read_16_at_pc();
+                self.advance();
+                let jump_address = self.read_16_and_advance();
 
                 let should_jump = match condition {
                     0 => !self.registers.flag(flags::ZERO),
@@ -597,18 +534,14 @@ where
             }
             (3, 1, 5) => {
                 // CALL nn
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let address = self.read_16_at_pc();
+                self.advance();
+                let address = self.read_16_and_advance();
                 self.call(address);
             }
             (3, condition, 4) => {
                 // CALL c nn
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
-                let address = self.read_16_at_pc();
+                self.advance();
+                let address = self.read_16_and_advance();
                 let should_call = match condition {
                     0 => !self.registers.flag(flags::ZERO),
                     1 => self.registers.flag(flags::ZERO),
@@ -627,16 +560,12 @@ where
             }
             (3, 1, 1) => {
                 // RET
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 self.ret();
             }
             (3, condition, 0) => {
                 // RET c
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let should_ret = match condition {
                     0 => !self.registers.flag(flags::ZERO),
                     1 => self.registers.flag(flags::ZERO),
@@ -655,9 +584,7 @@ where
             }
             (3, address_shorthand, 7) => {
                 // RST p
-                self.registers.increment_pc();
-                self.registers.increment_r();
-
+                self.advance();
                 let address = match address_shorthand {
                     0 => 0x00,
                     1 => 0x08,
@@ -671,6 +598,19 @@ where
                 };
                 self.call(address);
             }
+            (3, 3, 3) => {
+                // IN A, (n)
+                self.advance();
+                let port = (self.registers.a as u16) << 8 | (self.read_and_advance() as u16);
+                self.registers.a = self.bus.read_io(port);
+            }
+            (3, 2, 3) => {
+                // OUT n, A
+                self.advance();
+                let port = (self.registers.a as u16) << 8 | (self.read_and_advance() as u16);
+                self.bus.write_io(port, self.registers.a);
+            }
+
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -691,16 +631,16 @@ where
     }
 
     #[inline]
-    fn read_at_pc(&mut self) -> u8 {
+    fn read_and_advance(&mut self) -> u8 {
         let result = self.bus.read8(self.registers.pc);
         self.registers.increment_pc();
         result
     }
 
     #[inline]
-    fn read_16_at_pc(&mut self) -> u16 {
-        let low_byte = self.read_at_pc() as u16;
-        let high_byte = self.read_at_pc() as u16;
+    fn read_16_and_advance(&mut self) -> u16 {
+        let low_byte = self.read_and_advance() as u16;
+        let high_byte = self.read_and_advance() as u16;
         (high_byte << 8) | low_byte
     }
 
@@ -4084,6 +4024,37 @@ mod tests {
             assert_eq!(cpu.bus.read8(cpu.registers.sp + 1), 0xC0);
 
             assert_eq!(cpu.registers.r, 1);
+        }
+
+        #[test]
+        fn should_in_a_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 0xFF;
+            cpu.bus.write_io(1, 123);
+            cpu.bus.write8(0, 3 << 6 | 3 << 3 | 3);
+            cpu.bus.write8(1, 1);
+
+            // IN A, n
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 123);
+        }
+
+        #[test]
+        fn should_out_n_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = 42;
+            cpu.bus.write_io(1, 123);
+            cpu.bus.write8(0, 3 << 6 | 2 << 3 | 3);
+            cpu.bus.write8(1, 1);
+
+            // OUT n, A
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 42);
+            assert_eq!(cpu.bus.read_io(1), 42);
         }
     }
 }
