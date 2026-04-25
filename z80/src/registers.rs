@@ -1,5 +1,3 @@
-use crate::flags::is_bit_set;
-
 pub mod index {
     pub const A: u8 = 7;
     pub const B: u8 = 0;
@@ -180,24 +178,6 @@ impl Registers {
     pub fn set_hl_alt(&mut self, value: u16) {
         self.h_alt = (value >> 8) as u8;
         self.l_alt = (value & 0xFF) as u8;
-    }
-
-    pub fn set_flag(&mut self, bit: u8, value: bool) {
-        if value {
-            self.f |= 1 << bit;
-        } else {
-            self.f &= !(1 << bit);
-        }
-    }
-
-    pub fn set_flags(&mut self, bit_and_value: &[(u8, bool)]) {
-        for (bit, value) in bit_and_value {
-            self.set_flag(*bit, *value);
-        }
-    }
-
-    pub fn flag(&self, index: u8) -> bool {
-        is_bit_set(self.f, index)
     }
 }
 

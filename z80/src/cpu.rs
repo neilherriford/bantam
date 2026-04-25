@@ -1,8 +1,9 @@
 use crate::{
     bus::Bus,
     decode,
-    flags::{self, is_set},
+    flags::{self, bit_is_set, is_set},
     registers::{self, Registers},
+    set_bits,
 };
 
 fn wrapping_offset_u16(addend: u16, signed_augend: u8) -> u16 {
@@ -61,7 +62,7 @@ where
 
     #[inline]
     fn add_u8_and_set_flags(&mut self, augend: u8, addend: u8, use_carry: bool) -> u8 {
-        let carry_in: u8 = if use_carry && self.registers.flag(flags::CARRY) {
+        let carry_in: u8 = if use_carry && bit_is_set(self.registers.f, flags::CARRY) {
             1
         } else {
             0
@@ -75,14 +76,15 @@ where
         let overflow = ((addend ^ sum) & (augend ^ sum) & 0x80) != 0;
         let half_carry = (augend & 0x0F) + (addend & 0x0F) + carry_in > 0x0F;
 
-        self.registers.set_flags(&[
-            (flags::CARRY, full > 0xFF),
-            (flags::ADD_SUBTRACT, false),
-            (flags::PARITY_OVERFLOW, overflow),
-            (flags::HALF_CARRY, half_carry),
-            (flags::ZERO, sum == 0),
-            (flags::SIGN, is_set(sum, 0x80)),
-        ]);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY =>  full > 0xFF,
+            flags::ADD_SUBTRACT => false,
+            flags::PARITY_OVERFLOW => overflow,
+            flags::HALF_CARRY => half_carry,
+            flags::ZERO => sum == 0,
+            flags::SIGN => is_set(sum, 0x80)
+        );
 
         sum
     }
@@ -102,7 +104,7 @@ where
 
     #[inline]
     fn add_u16_and_set_flags(&mut self, augend: u16, addend: u16, use_carry: bool) -> u16 {
-        let carry_in: u8 = if use_carry && self.registers.flag(flags::CARRY) {
+        let carry_in: u8 = if use_carry && bit_is_set(self.registers.f, flags::CARRY) {
             1
         } else {
             0
@@ -112,18 +114,19 @@ where
         let sum = full as u16;
         let half_carry = (augend & 0x0FFF) + (addend & 0x0FFF) + (carry_in as u16) > 0x0FFF;
 
-        self.registers.set_flags(&[
-            (flags::CARRY, full > 0xFFFF),
-            (flags::ADD_SUBTRACT, false),
-            (flags::HALF_CARRY, half_carry),
-        ]);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY => full > 0xFFFF,
+            flags::ADD_SUBTRACT => false,
+            flags::HALF_CARRY => half_carry,
+        );
 
         sum
     }
 
     #[inline]
     fn subtract_u8_and_set_flags(&mut self, minuend: u8, subtrahend: u8, use_borrow: bool) -> u8 {
-        let borrow_in: u8 = if use_borrow && self.registers.flag(flags::CARRY) {
+        let borrow_in: u8 = if use_borrow && bit_is_set(self.registers.f, flags::CARRY) {
             1
         } else {
             0
@@ -137,14 +140,15 @@ where
         let overflow = ((minuend ^ subtrahend) & (minuend ^ difference) & 0x80) != 0;
         let half_carry = (minuend & 0x0F) < ((subtrahend & 0x0F) + borrow_in);
 
-        self.registers.set_flags(&[
-            (flags::CARRY, full > 0xFF),
-            (flags::ADD_SUBTRACT, true),
-            (flags::PARITY_OVERFLOW, overflow),
-            (flags::HALF_CARRY, half_carry),
-            (flags::ZERO, difference == 0),
-            (flags::SIGN, is_set(difference, 0x80)),
-        ]);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY => full > 0xFF,
+            flags::ADD_SUBTRACT => true,
+            flags::PARITY_OVERFLOW => overflow,
+            flags::HALF_CARRY => half_carry,
+            flags::ZERO => difference == 0,
+            flags::SIGN => is_set(difference, 0x80),
+        );
 
         difference
     }
@@ -311,13 +315,14 @@ where
                 let after = before.wrapping_add(1);
                 self.write_indexed_register(register, after);
 
-                self.registers.set_flags(&[
-                    (flags::ADD_SUBTRACT, false),
-                    (flags::PARITY_OVERFLOW, before == 0x7F),
-                    (flags::HALF_CARRY, is_set(before, 0x0F)),
-                    (flags::ZERO, after == 0),
-                    (flags::SIGN, is_set(after, 0x80)),
-                ]);
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::ADD_SUBTRACT => false,
+                    flags::PARITY_OVERFLOW => before == 0x7F,
+                    flags::HALF_CARRY => is_set(before, 0x0F),
+                    flags::ZERO => after == 0,
+                    flags::SIGN => is_set(after, 0x80),
+                );
             }
             (0, register, 5) => {
                 // DEC r
@@ -326,11 +331,12 @@ where
                 let after = before.wrapping_sub(1);
                 self.write_indexed_register(register, after);
 
-                self.registers.set_flags(&[
-                    (flags::ADD_SUBTRACT, true),
-                    (flags::PARITY_OVERFLOW, before == 0x80),
-                    (flags::HALF_CARRY, before & 0x0F == 0x00),
-                ]);
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::ADD_SUBTRACT => true,
+                    flags::PARITY_OVERFLOW => before == 0x80,
+                    flags::HALF_CARRY => before & 0x0F == 0x00,
+                );
 
                 self.set_zero_and_sign_flags_for_u8(after);
             }
@@ -410,7 +416,7 @@ where
                 let value = self.read_indexed_register(register);
                 self.registers.a &= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, true);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => true);
             }
             (2, 6, register) => {
                 // OR r
@@ -418,7 +424,7 @@ where
                 let value = self.read_indexed_register(register);
                 self.registers.a |= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, false);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
             }
             (2, 5, register) => {
                 // XOR r
@@ -426,7 +432,7 @@ where
                 let value = self.read_indexed_register(register);
                 self.registers.a ^= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, false);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
             }
             (3, 4, 6) => {
                 // AND n
@@ -435,7 +441,7 @@ where
 
                 self.registers.a &= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, true);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => true);
             }
             (3, 6, 6) => {
                 // OR n
@@ -444,7 +450,7 @@ where
 
                 self.registers.a |= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, false);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
             }
             (3, 5, 6) => {
                 // XOR n
@@ -453,7 +459,7 @@ where
 
                 self.registers.a ^= value;
                 self.set_boolean_operator_flags(self.registers.a);
-                self.registers.set_flag(flags::HALF_CARRY, false);
+                self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
             }
             (0, pair @ (1 | 3 | 5 | 7), 1) => {
                 // ADD HL, s
@@ -485,7 +491,7 @@ where
                 // JR NZ, e
                 self.advance();
                 let offset = self.read_and_advance();
-                if !self.registers.flag(flags::ZERO) {
+                if !bit_is_set(self.registers.f, flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
@@ -493,7 +499,7 @@ where
                 // JR Z, e
                 self.advance();
                 let offset = self.read_and_advance();
-                if self.registers.flag(flags::ZERO) {
+                if bit_is_set(self.registers.f, flags::ZERO) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
@@ -501,7 +507,7 @@ where
                 // JR NC, e
                 self.advance();
                 let offset = self.read_and_advance();
-                if !self.registers.flag(flags::CARRY) {
+                if !bit_is_set(self.registers.f, flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
@@ -509,7 +515,7 @@ where
                 // JR C, e
                 self.advance();
                 let offset = self.read_and_advance();
-                if self.registers.flag(flags::CARRY) {
+                if bit_is_set(self.registers.f, flags::CARRY) {
                     self.registers.pc = wrapping_offset_u16(self.registers.pc, offset);
                 }
             }
@@ -524,14 +530,14 @@ where
                 let jump_address = self.read_16_and_advance();
 
                 let should_jump = match condition {
-                    0 => !self.registers.flag(flags::ZERO),
-                    1 => self.registers.flag(flags::ZERO),
-                    2 => !self.registers.flag(flags::CARRY),
-                    3 => self.registers.flag(flags::CARRY),
-                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
-                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
-                    6 => !self.registers.flag(flags::SIGN),
-                    7 => self.registers.flag(flags::SIGN),
+                    0 => !bit_is_set(self.registers.f, flags::ZERO),
+                    1 => bit_is_set(self.registers.f, flags::ZERO),
+                    2 => !bit_is_set(self.registers.f, flags::CARRY),
+                    3 => bit_is_set(self.registers.f, flags::CARRY),
+                    4 => !bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    5 => bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    6 => !bit_is_set(self.registers.f, flags::SIGN),
+                    7 => bit_is_set(self.registers.f, flags::SIGN),
                     _ => unreachable!(),
                 };
 
@@ -550,14 +556,14 @@ where
                 self.advance();
                 let address = self.read_16_and_advance();
                 let should_call = match condition {
-                    0 => !self.registers.flag(flags::ZERO),
-                    1 => self.registers.flag(flags::ZERO),
-                    2 => !self.registers.flag(flags::CARRY),
-                    3 => self.registers.flag(flags::CARRY),
-                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
-                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
-                    6 => !self.registers.flag(flags::SIGN),
-                    7 => self.registers.flag(flags::SIGN),
+                    0 => !bit_is_set(self.registers.f, flags::ZERO),
+                    1 => bit_is_set(self.registers.f, flags::ZERO),
+                    2 => !bit_is_set(self.registers.f, flags::CARRY),
+                    3 => bit_is_set(self.registers.f, flags::CARRY),
+                    4 => !bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    5 => bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    6 => !bit_is_set(self.registers.f, flags::SIGN),
+                    7 => bit_is_set(self.registers.f, flags::SIGN),
                     _ => unreachable!(),
                 };
 
@@ -574,14 +580,14 @@ where
                 // RET c
                 self.advance();
                 let should_ret = match condition {
-                    0 => !self.registers.flag(flags::ZERO),
-                    1 => self.registers.flag(flags::ZERO),
-                    2 => !self.registers.flag(flags::CARRY),
-                    3 => self.registers.flag(flags::CARRY),
-                    4 => !self.registers.flag(flags::PARITY_OVERFLOW),
-                    5 => self.registers.flag(flags::PARITY_OVERFLOW),
-                    6 => !self.registers.flag(flags::SIGN),
-                    7 => self.registers.flag(flags::SIGN),
+                    0 => !bit_is_set(self.registers.f, flags::ZERO),
+                    1 => bit_is_set(self.registers.f, flags::ZERO),
+                    2 => !bit_is_set(self.registers.f, flags::CARRY),
+                    3 => bit_is_set(self.registers.f, flags::CARRY),
+                    4 => !bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    5 => bit_is_set(self.registers.f, flags::PARITY_OVERFLOW),
+                    6 => !bit_is_set(self.registers.f, flags::SIGN),
+                    7 => bit_is_set(self.registers.f, flags::SIGN),
                     _ => unreachable!(),
                 };
 
@@ -662,34 +668,22 @@ where
                 // RLCA
                 self.advance();
                 self.registers.a = self.registers.a.rotate_left(1);
-                self.registers.set_flags(&[
-                    (flags::CARRY, is_set(self.registers.a, 1)),
-                    (flags::HALF_CARRY, false),
-                    (flags::ADD_SUBTRACT, false),
-                ]);
+                self.set_rotate_flags(is_set(self.registers.a, 1));
             }
             (0, 1, 7) => {
                 // RRCA
                 self.advance();
                 self.registers.a = self.registers.a.rotate_right(1);
-                self.registers.set_flags(&[
-                    (flags::CARRY, is_set(self.registers.a, 0x80)),
-                    (flags::HALF_CARRY, false),
-                    (flags::ADD_SUBTRACT, false),
-                ]);
+                self.set_rotate_flags(is_set(self.registers.a, 0x80));
             }
             (0, 2, 7) => {
                 // RLA
                 self.advance();
-                let old_carry = self.registers.flag(flags::CARRY);
+                let old_carry = bit_is_set(self.registers.f, flags::CARRY);
                 let new_carry = is_set(self.registers.a, 0x80);
 
                 self.registers.a <<= 1;
-                self.registers.set_flags(&[
-                    (flags::CARRY, new_carry),
-                    (flags::HALF_CARRY, false),
-                    (flags::ADD_SUBTRACT, false),
-                ]);
+                self.set_rotate_flags(new_carry);
                 if old_carry {
                     self.registers.a |= 1
                 }
@@ -697,14 +691,10 @@ where
             (0, 3, 7) => {
                 // RRA
                 self.advance();
-                let old_carry = self.registers.flag(flags::CARRY);
+                let old_carry = bit_is_set(self.registers.f, flags::CARRY);
                 let new_carry = is_set(self.registers.a, 1);
                 self.registers.a >>= 1;
-                self.registers.set_flags(&[
-                    (flags::CARRY, new_carry),
-                    (flags::HALF_CARRY, false),
-                    (flags::ADD_SUBTRACT, false),
-                ]);
+                self.set_rotate_flags(new_carry);
                 if old_carry {
                     self.registers.a |= 0x80
                 }
@@ -713,22 +703,33 @@ where
         }
     }
 
+    fn set_rotate_flags(&mut self, new_carry: bool) {
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY => new_carry,
+            flags::HALF_CARRY => false,
+            flags::ADD_SUBTRACT => false,
+        );
+    }
+
     #[inline]
     fn set_boolean_operator_flags(&mut self, value: u8) {
         self.set_zero_and_sign_flags_for_u8(value);
-        self.registers.set_flags(&[
-            (flags::CARRY, false),
-            (flags::ADD_SUBTRACT, false),
-            (flags::PARITY_OVERFLOW, value.count_ones().is_multiple_of(2)),
-        ]);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY => false,
+            flags::ADD_SUBTRACT => false,
+            flags::PARITY_OVERFLOW => value.count_ones().is_multiple_of(2),
+        );
     }
 
     #[inline]
     fn set_zero_and_sign_flags_for_u8(&mut self, value: u8) {
-        self.registers.set_flags(&[
-            (flags::ZERO, value == 0),
-            (flags::SIGN, is_set(value, 0x80)),
-        ]);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::ZERO => value == 0,
+            flags::SIGN => is_set(value, 0x80),
+        );
     }
 
     #[inline]
@@ -863,8 +864,9 @@ mod tests {
             use crate::{
                 bus::{Bus, TestBus},
                 cpu::Cpu,
-                flags,
+                flags::{self, bit_is_set, is_set},
                 registers::{self, Registers},
+                set_bits,
             };
 
             #[test]
@@ -873,12 +875,12 @@ mod tests {
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(!cpu.registers.flag(flags::SIGN));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 0x7f;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(cpu.registers.flag(flags::SIGN));
+                assert!(bit_is_set(cpu.registers.f, flags::SIGN));
             }
 
             #[test]
@@ -887,12 +889,12 @@ mod tests {
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(!cpu.registers.flag(flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 0xFF;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(cpu.registers.flag(flags::ZERO));
+                assert!(bit_is_set(cpu.registers.f, flags::ZERO));
             }
 
             #[test]
@@ -901,12 +903,12 @@ mod tests {
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(!cpu.registers.flag(flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 0x0F;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(cpu.registers.flag(flags::HALF_CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             }
 
             #[test]
@@ -915,27 +917,27 @@ mod tests {
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 0x7F;
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             }
 
             #[test]
             fn should_reset_add_subtract() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
 
                 cpu.add_u8_by_index_and_set_flags(registers::index::B, registers::index::C, false);
-                assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             }
 
             #[test]
             fn should_use_carry_in() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::CARRY, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 let actual = cpu.add_u8_by_index_and_set_flags(
@@ -947,7 +949,7 @@ mod tests {
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
-                cpu.registers.set_flag(flags::CARRY, false);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
                 let actual = cpu.add_u8_by_index_and_set_flags(
                     registers::index::B,
                     registers::index::C,
@@ -961,8 +963,9 @@ mod tests {
             use crate::{
                 bus::{Bus, TestBus},
                 cpu::Cpu,
-                flags,
+                flags::{self, bit_is_set, is_set},
                 registers::{self, Registers},
+                set_bits,
             };
 
             #[test]
@@ -975,7 +978,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(!cpu.registers.flag(flags::SIGN));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
@@ -984,7 +987,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(cpu.registers.flag(flags::SIGN));
+                assert!(bit_is_set(cpu.registers.f, flags::SIGN));
             }
 
             #[test]
@@ -997,7 +1000,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(!cpu.registers.flag(flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 1;
@@ -1006,7 +1009,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(cpu.registers.flag(flags::ZERO));
+                assert!(bit_is_set(cpu.registers.f, flags::ZERO));
             }
 
             #[test]
@@ -1019,7 +1022,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(!cpu.registers.flag(flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
 
                 cpu.registers.b = 0x0E;
                 cpu.registers.c = 0x0F;
@@ -1028,7 +1031,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(cpu.registers.flag(flags::HALF_CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             }
 
             #[test]
@@ -1041,7 +1044,7 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
 
                 cpu.registers.b = 0x50;
                 cpu.registers.c = 0xB0;
@@ -1050,26 +1053,26 @@ mod tests {
                     registers::index::C,
                     false,
                 );
-                assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             }
 
             #[test]
             fn should_set_add_subtract() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::ADD_SUBTRACT, false);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => false);
 
                 cpu.subtract_u8_by_index_and_set_flags(
                     registers::index::B,
                     registers::index::C,
                     false,
                 );
-                assert!(cpu.registers.flag(flags::ADD_SUBTRACT));
+                assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             }
 
             #[test]
             fn should_use_borrow_in() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::CARRY, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
                 let actual = cpu.subtract_u8_by_index_and_set_flags(
@@ -1081,7 +1084,7 @@ mod tests {
 
                 cpu.registers.b = 1;
                 cpu.registers.c = 2;
-                cpu.registers.set_flag(flags::CARRY, false);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
                 let actual = cpu.subtract_u8_by_index_and_set_flags(
                     registers::index::B,
                     registers::index::C,
@@ -1095,53 +1098,54 @@ mod tests {
             use crate::{
                 bus::{Bus, TestBus},
                 cpu::Cpu,
-                flags,
+                flags::{self, bit_is_set, is_set},
                 registers::{self, Registers},
+                set_bits,
             };
 
             #[test]
             fn should_set_zero() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.set_boolean_operator_flags(0);
-                assert!(cpu.registers.flag(flags::ZERO));
+                assert!(bit_is_set(cpu.registers.f, flags::ZERO));
                 cpu.set_boolean_operator_flags(1);
-                assert!(!cpu.registers.flag(flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
             }
 
             #[test]
             fn should_set_sign() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.set_boolean_operator_flags(0x80);
-                assert!(cpu.registers.flag(flags::SIGN));
+                assert!(bit_is_set(cpu.registers.f, flags::SIGN));
                 cpu.set_boolean_operator_flags(0x7F);
-                assert!(!cpu.registers.flag(flags::SIGN));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
             }
 
             #[test]
             fn should_set_carry() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::CARRY, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
                 cpu.set_boolean_operator_flags(0);
-                assert!(!cpu.registers.flag(flags::CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
             }
 
             #[test]
             fn should_set_add_subtract() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
                 cpu.set_boolean_operator_flags(0);
-                assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             }
 
             #[test]
             fn should_set_parity() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.set_boolean_operator_flags(3);
-                assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
 
-                cpu.registers.set_flag(flags::ADD_SUBTRACT, false);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => false);
                 cpu.set_boolean_operator_flags(1);
-                assert!(!cpu.registers.flag(flags::PARITY_OVERFLOW));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             }
         }
 
@@ -1149,32 +1153,33 @@ mod tests {
             use crate::{
                 bus::{Bus, TestBus},
                 cpu::Cpu,
-                flags,
+                flags::{self, bit_is_set, is_set},
                 registers::{self, Registers},
+                set_bits,
             };
 
             #[test]
             fn should_set_carry() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.add_u16_and_set_flags(0xFFFF, 1, false);
-                assert!(cpu.registers.flag(flags::CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::CARRY));
             }
 
             #[test]
             fn should_set_add_subtract() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-                cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+                cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
                 cpu.add_u16_and_set_flags(0xFFFF, 1, false);
-                assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             }
 
             #[test]
             fn should_set_half_carry() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.add_u16_and_set_flags(0x0FFF, 0x001, false);
-                assert!(cpu.registers.flag(flags::HALF_CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
                 cpu.add_u16_and_set_flags(1, 1, false);
-                assert!(!cpu.registers.flag(flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             }
         }
     }
@@ -1185,8 +1190,9 @@ mod tests {
                 Cpu,
                 tests::{REG_C_DEST, REG_E_SRC, REG_HL_DEST, REG_HL_SRC},
             },
-            flags::{self, is_bit_set, is_set},
+            flags::{self, bit_is_set, is_set},
             registers::Registers,
+            set_bits,
         };
 
         #[test]
@@ -1704,7 +1710,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
         }
 
         #[test]
@@ -1716,7 +1722,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -1728,7 +1734,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -1740,20 +1746,20 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
         }
 
         #[test]
         fn should_reset_add_subtract_on_inc() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
             cpu.registers.a = 0xAB;
             cpu.bus.write8(0, 7 << 3 | 4);
             // INC A
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(!cpu.registers.flag(flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
         }
 
         #[test]
@@ -1862,7 +1868,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
         }
 
         #[test]
@@ -1874,7 +1880,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -1886,7 +1892,7 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -1898,20 +1904,20 @@ mod tests {
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
         }
 
         #[test]
         fn should_reset_add_subtract_on_dec() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
-            cpu.registers.set_flag(flags::ADD_SUBTRACT, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
             cpu.registers.a = 0xAB;
             cpu.bus.write8(0, 7 << 3 | 5);
             // DEC A
             cpu.step();
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
-            assert!(cpu.registers.flag(flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
         }
 
         #[test]
@@ -2023,7 +2029,7 @@ mod tests {
         fn should_adc_a_a() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 7);
             // ADC A, A
             cpu.step();
@@ -2037,7 +2043,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.b = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3);
             // ADC A, B
             cpu.step();
@@ -2051,7 +2057,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.c = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 1);
             // ADC A, C
             cpu.step();
@@ -2065,7 +2071,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.d = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 2);
             // ADC A, D
             cpu.step();
@@ -2079,7 +2085,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.e = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 3);
             // ADC A, E
             cpu.step();
@@ -2093,7 +2099,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.h = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 4);
             // ADC A, H
             cpu.step();
@@ -2107,7 +2113,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.l = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 5);
             // ADC A, H
             cpu.step();
@@ -2122,7 +2128,7 @@ mod tests {
             cpu.registers.a = 1;
             cpu.registers.l = 2;
             cpu.registers.set_hl(0xBEEF);
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 1 << 3 | 6);
             cpu.bus.write8(0xBEEF, 2);
             // ADC A, (HL)
@@ -2149,7 +2155,7 @@ mod tests {
         fn should_adc_a_n() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 3 << 6 | 1 << 3 | 6);
             cpu.bus.write8(1, 2);
             // ADD A, n
@@ -2267,7 +2273,7 @@ mod tests {
         fn should_sbc_a_a() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 7);
             // SUB A, A
             cpu.step();
@@ -2281,7 +2287,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.b = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3);
             // SUB A, B
             cpu.step();
@@ -2295,7 +2301,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.c = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 1);
             // SUB A, C
             cpu.step();
@@ -2309,7 +2315,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.d = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 2);
             // SUB A, D
             cpu.step();
@@ -2323,7 +2329,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.e = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 3);
             // SUB A, E
             cpu.step();
@@ -2337,7 +2343,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.h = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 4);
             // SUB A, H
             cpu.step();
@@ -2351,7 +2357,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
             cpu.registers.l = 2;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 5);
             // SUB A, L
             cpu.step();
@@ -2364,7 +2370,7 @@ mod tests {
         fn should_sbc_a_hl() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.registers.set_hl(0xBEEF);
             cpu.bus.write8(0xBEEF, 2);
             cpu.bus.write8(0, 2 << 6 | 3 << 3 | 6);
@@ -2392,7 +2398,7 @@ mod tests {
         fn should_sbc_a_n() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0, 3 << 6 | 3 << 3 | 6);
             cpu.bus.write8(1, 2);
             // SBC A, n
@@ -2412,7 +2418,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2426,7 +2432,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2440,7 +2446,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2454,7 +2460,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2468,7 +2474,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2482,7 +2488,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2496,7 +2502,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2511,7 +2517,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2525,7 +2531,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
         }
 
         #[test]
@@ -2539,7 +2545,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xAA);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2554,7 +2560,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2569,7 +2575,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2583,7 +2589,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2597,7 +2603,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2611,7 +2617,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2625,7 +2631,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2640,7 +2646,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2654,7 +2660,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xAA);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2669,7 +2675,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2684,7 +2690,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2698,7 +2704,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2712,7 +2718,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2726,7 +2732,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2740,7 +2746,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2755,7 +2761,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2769,7 +2775,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2784,7 +2790,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2799,7 +2805,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2813,7 +2819,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2827,7 +2833,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2841,7 +2847,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2855,7 +2861,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2870,7 +2876,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2884,7 +2890,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x0A);
-            assert!(cpu.registers.flag(flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2898,7 +2904,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0xFF);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -2912,7 +2918,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 2);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x55);
-            assert!(!cpu.registers.flag(flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
         }
 
         #[test]
@@ -3024,7 +3030,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 5 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
 
             // JP Z n
             cpu.step();
@@ -3037,7 +3043,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 5 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
 
             // JP Z n
             cpu.step();
@@ -3050,7 +3056,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 4 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
 
             // JP NZ n
             cpu.step();
@@ -3063,7 +3069,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 4 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
 
             // JP NZ n
             cpu.step();
@@ -3076,7 +3082,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 7 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // JP C n
             cpu.step();
@@ -3089,7 +3095,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 7 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // JP C n
             cpu.step();
@@ -3102,7 +3108,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 6 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // JP NC n
             cpu.step();
@@ -3115,7 +3121,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 6 << 3);
             cpu.bus.write8(1, 0xFD);
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // JP NC n
             cpu.step();
@@ -3129,7 +3135,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
 
             // JP NZ nn
             cpu.step();
@@ -3143,7 +3149,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
 
             // JP NZ nn
             cpu.step();
@@ -3157,7 +3163,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 1 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
 
             // JP NZ nn
             cpu.step();
@@ -3171,7 +3177,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 1 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
 
             // JP NZ nn
             cpu.step();
@@ -3185,7 +3191,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 2 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // JP NC nn
             cpu.step();
@@ -3199,7 +3205,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 2 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // JP NC nn
             cpu.step();
@@ -3213,7 +3219,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 3 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // JP C nn
             cpu.step();
@@ -3227,7 +3233,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 3 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // JP C nn
             cpu.step();
@@ -3241,7 +3247,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 4 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
 
             // JP NO nn
             cpu.step();
@@ -3255,7 +3261,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 4 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
 
             // JP NO nn
             cpu.step();
@@ -3269,7 +3275,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 5 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
 
             // JP O nn
             cpu.step();
@@ -3283,7 +3289,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 5 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
 
             // JP O nn
             cpu.step();
@@ -3297,7 +3303,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 6 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
 
             // JP NS nn
             cpu.step();
@@ -3311,7 +3317,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 6 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
 
             // JP NS nn
             cpu.step();
@@ -3325,7 +3331,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 7 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
 
             // JP S nn
             cpu.step();
@@ -3339,7 +3345,7 @@ mod tests {
             cpu.bus.write8(0, 3 << 6 | 7 << 3 | 2);
             cpu.bus.write8(1, 0xEF);
             cpu.bus.write8(2, 0xBE);
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
 
             // JP S nn
             cpu.step();
@@ -3371,7 +3377,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3391,7 +3397,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3408,7 +3414,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3425,7 +3431,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3445,7 +3451,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3465,7 +3471,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3482,7 +3488,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3499,7 +3505,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3519,7 +3525,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3539,7 +3545,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3556,7 +3562,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3573,7 +3579,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3593,7 +3599,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3613,7 +3619,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3630,7 +3636,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3647,7 +3653,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 4);
             cpu.bus.write8(0xC0DF, 0xEF);
             cpu.bus.write8(0xC0E0, 0xBE);
@@ -3684,7 +3690,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
             cpu.bus.write8(0xC0DE, 3 << 6);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3702,7 +3708,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
             cpu.bus.write8(0xC0DE, 3 << 6);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3720,7 +3726,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3738,7 +3744,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::ZERO, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ZERO => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3756,7 +3762,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3774,7 +3780,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3792,7 +3798,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3810,7 +3816,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3828,7 +3834,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3846,7 +3852,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3864,7 +3870,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3882,7 +3888,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::PARITY_OVERFLOW, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::PARITY_OVERFLOW => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3900,7 +3906,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3918,7 +3924,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3936,7 +3942,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => false);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3954,7 +3960,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAB;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3972,7 +3978,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -3992,7 +3998,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 1 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4012,7 +4018,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 2 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4032,7 +4038,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 3 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4052,7 +4058,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 4 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4072,7 +4078,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 5 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4092,7 +4098,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 6 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4112,7 +4118,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.sp = 0xDEAF;
             cpu.registers.pc = 0xC0DE;
-            cpu.registers.set_flag(flags::SIGN, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::SIGN => true);
             cpu.bus.write8(0xC0DE, 3 << 6 | 7 << 3 | 7);
             cpu.bus.write8(cpu.registers.sp, 0xEF);
             cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
@@ -4239,7 +4245,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 7);
             cpu.registers.a = 0x80;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // RLCA
             cpu.step();
@@ -4247,7 +4253,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 1);
-            assert!(cpu.registers.flag(flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
         }
 
         #[test]
@@ -4255,7 +4261,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 1 << 3 | 7);
             cpu.registers.a = 3;
-            cpu.registers.set_flag(flags::CARRY, false);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => false);
 
             // RRCA
             cpu.step();
@@ -4263,7 +4269,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x81);
-            assert!(cpu.registers.flag(flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
         }
 
         #[test]
@@ -4271,7 +4277,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 2 << 3 | 7);
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // RLA
             cpu.step();
@@ -4279,7 +4285,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 3);
-            assert!(!cpu.registers.flag(flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
         }
 
         #[test]
@@ -4287,7 +4293,7 @@ mod tests {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0, 3 << 3 | 7);
             cpu.registers.a = 1;
-            cpu.registers.set_flag(flags::CARRY, true);
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::CARRY => true);
 
             // RRA
             cpu.step();
@@ -4295,7 +4301,7 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x80);
-            assert!(cpu.registers.flag(flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
         }
     }
 }
