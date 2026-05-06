@@ -699,6 +699,62 @@ where
                     self.registers.a |= 0x80
                 }
             }
+            (0, 4, 7) => {
+                // DAA
+                self.advance();
+                let was_subtract = bit_is_set(self.registers.f, flags::ADD_SUBTRACT);
+                let diff = self.bcd_difference();
+                let new_half_carry = self.bcd_new_half_carry();
+                let new_carry = self.bcd_new_carry();
+
+                if was_subtract {
+                    self.registers.a = self.registers.a.wrapping_sub(diff);
+                } else {
+                    self.registers.a = self.registers.a.wrapping_add(diff);
+                }
+
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::CARRY => new_carry,
+                    flags::HALF_CARRY => new_half_carry,
+                    flags::PARITY_OVERFLOW => self.registers.a.count_ones().is_multiple_of(2),
+                    flags::ZERO => self.registers.a == 0,
+                    flags::SIGN => bit_is_set(self.registers.a, 7),
+                )
+            }
+            (0, 5, 7) => {
+                // CPL
+                self.advance();
+                self.registers.a = !self.registers.a;
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::ADD_SUBTRACT => true,
+                    flags::HALF_CARRY => true,
+                )
+            }
+            (0, 6, 7) => {
+                // SCF
+                self.advance();
+
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::ADD_SUBTRACT => false,
+                    flags::HALF_CARRY => false,
+                    flags::CARRY => true,
+                )
+            }
+            (0, 7, 7) => {
+                // CCF
+                self.advance();
+
+                let old_carry = bit_is_set(self.registers.f, flags::CARRY);
+                self.registers.f = set_bits!(
+                    self.registers.f,
+                    flags::ADD_SUBTRACT => false,
+                    flags::HALF_CARRY => old_carry,
+                    flags::CARRY => !old_carry,
+                )
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -768,6 +824,151 @@ where
         let high_byte = self.bus.read8(self.registers.sp.wrapping_add(1)) as u16;
         self.registers.sp = self.registers.sp.wrapping_add(2);
         self.registers.pc = (high_byte << 8) | low_byte
+    }
+
+    #[inline]
+    fn bcd_difference(&mut self) -> u8 {
+        // From The Undocumented Z80 Documented, by Sean Young
+        // Version 0.91, 18th September, 2005:
+        //     high       low
+        // C  nibble  H  nibble  diff
+        // ▔  ▔▔▔▔▔▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔
+        // 0  0-9     0  0-9     00
+        // 0  0-9     1  0-9     06
+        // 0  0-8     *  a-f     06
+        // 0  a-f     0  0-9     60
+        // 1  *       0  0-9     60
+        // 1  *       1  0-9     66
+        // 1  *       *  a-f     66
+        // 0  9-f     *  a-f     66
+        // 0  a-f     1  0-9     66
+        //
+        // OK so this simplification took me a while to
+        // understand; the key insight is to split the problem
+        // into nibbles:
+        //
+        //        high    low
+        // C  H  nibble  nibble  dh  dl
+        // ▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔  ▔▔
+        // 0  0  0-9     0-9     0   0
+        // 0  1  0-9     0-9     0   6
+        // 0  *  0-8     a-f     0   6
+        // 0  0  a-f     0-9     6   0
+        // 1  0  *       0-9     6   0
+        // 1  1  *       0-9     6   6
+        // 1  *  *       a-f     6   6
+        // 0  *  9-f     a-f     6   6
+        // 0  1  a-f     0-9     6   6
+        //
+        // Now there's two problems, solve for when DH is set to
+        // 6, and when DL is set to six, by sorting the C and H
+        // flags:
+        //
+        //        high     low                  high     low                high     low
+        // C  H  nibble  nibble  dl      C  H  nibble  nibble  dl    C  H  nibble  nibble  dl
+        // ▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔      ▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔    ▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔
+        // 0  0  0-8     a-f      6┬─────0  0          a-f     6──┬──               a-f     6
+        // 0  0  9-f     a-f      6┘┌────0  1                  6─╴│╶┬   1                   6
+        //                          │ ┌──1  0          a-f     6──┘ │
+        // 0  1  0-9     0-9      6┐│ │ ┌1  1                  6────┘
+        // 0  1  a-f     0-9      6├┘ │ │
+        // 0  1  0-8     a-f      6│  │ │
+        // 0  1  9-f     a-f      6┘  │ │
+        //                            │ │
+        // 1  0  *       a-f      6───┘ │
+        //                              │
+        // 1  1  *       0-9      6┬────┘
+        // 1  1  *       a-f      6┘
+        //
+        // so this yields H || ln >= 10. OK.  Next, the high
+        // diff:
+        //        high    low                  high    low
+        //  C  H nibble  nibble  dh      C  H nibble  nibble  dh
+        //  ▔  ▔ ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔      ▔  ▔ ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔
+        //  0  0 9-f     a-f      6┬─────0    9-f     a-f      6
+        //  0  1 9-f     a-f      6┘ ┌───0    a-f     0-9      6
+        //                           │ ┌─1
+        //  0  0 a-f     0-9      6┬─┘ │
+        //  0  1 a-f     0-9      6┘   │
+        //                             │
+        //  1  1 *       a-f      6┐   │
+        //  1  0 *       0-9      6├───┘
+        //  1  1 *       0-9      6│
+        //  1  0 *       a-f      6┘
+        //
+        // so this yields
+        //  C
+        //  || (h == 9 && l >= 10)
+        //  || (h >= 10 && l <=10)
+        // The trick is realizing that this can be simplified
+        // if you look at the whole byte: the six is set when
+        // a > 99, i.e.
+        //   condition two     a >= 9A && a <= 9F
+        //   condition three   a >= A0 && a <= A9
+        // there's an overlap there, so we can simplify
+        let had_carry = bit_is_set(self.registers.f, flags::CARRY);
+        let had_half_carry = bit_is_set(self.registers.f, flags::HALF_CARRY);
+        let a = self.registers.a;
+        let low = a & 0xF;
+
+        let low_diff = if had_half_carry || low >= 10 {
+            0x06u8
+        } else {
+            0x00
+        };
+        let high_diff = if had_carry || a > 0x99 { 0x60u8 } else { 0x00 };
+        low_diff | high_diff
+    }
+
+    #[inline]
+    fn bcd_new_half_carry(&self) -> bool {
+        // This also needs a little break down, the trick here is that
+        // rows two and three are in conflict, so expanding rows one
+        // and two with respect to three gets us the solution
+        //            low
+        //   NF  HF  nibble  HF’
+        //   ▔▔  ▔▔  ▔▔▔▔▔▔  ▔▔▔
+        //  ┌0   *   0-9     0
+        //  │0   *   a-f     1───┬───conflict
+        //  ├0   1   6-f     0───┘
+        //  │1   1   0-5     1
+        //  │
+        //  └──HF  nibble  HF'
+        //     ▔▔  ▔▔▔▔▔▔  ▔▔▔
+        //     0   0-9     0───────row 1
+        //     0   A-F     1───────row 2
+        //     1   0-9     0───────row 1
+        //     1   A-F     0───────row 3 overrides row 2
+        //
+        // H' = (N && H && L <= 5) || (!N && !H && L >= 10)
+
+        let had_half_carry = bit_is_set(self.registers.f, flags::HALF_CARRY);
+        let low = self.registers.a & 0xF;
+
+        if bit_is_set(self.registers.f, flags::ADD_SUBTRACT) {
+            had_half_carry && low <= 5
+        } else {
+            !had_half_carry && low >= 0xA
+        }
+    }
+
+    #[inline]
+    fn bcd_new_carry(&self) -> bool {
+        // Same story here as the diff -- recognize that when the carry
+        // flag is set, the output is always high, or, looking at the
+        // full byte if the value is more than 0x99.
+        //
+        //      high    low
+        // CF  nibble  nibble  CF’
+        // ▔▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔▔
+        // 0   0-9     0-9     0
+        // 0   0-8     a-f     0
+        // 0   9-f     a-f     1
+        // 0   a-f     0-9     1
+        // 1     *       *     1
+
+        let had_carry = bit_is_set(self.registers.f, flags::CARRY);
+        had_carry || self.registers.a > 0x99
     }
 }
 
@@ -4302,6 +4503,339 @@ mod tests {
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.a, 0x80);
             assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_calculate_diff_for_daa() {
+            // Version 0.91, 18th September, 2005:
+            //           high    low
+            //    C  H  nibble  nibble  diff
+            //    ▔  ▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔▔▔
+            // Ⅰ  0  0  0-9     0-9     00
+            // Ⅱ  0  1  0-9     0-9     06
+            // Ⅲ  0  *  0-8     a-f     06
+            // Ⅳ  0  0  a-f     0-9     60
+            // Ⅴ  1  0  *       0-9     60
+            // Ⅵ  1  1  *       0-9     66
+            // Ⅶ  1  *  *       a-f     66
+            // Ⅷ  0  *  9-f     a-f     66
+            // Ⅸ  0  1  a-f     0-9     66
+
+            assert_daa_bcd_difference(false, false, 0, 0, 0); //       Ⅰ
+            assert_daa_bcd_difference(false, true, 0, 0, 0x06); //     Ⅱ
+            assert_daa_bcd_difference(false, true, 8, 0xA, 0x06); //   Ⅲa
+            assert_daa_bcd_difference(false, false, 8, 0xA, 0x06); //  Ⅲb
+            assert_daa_bcd_difference(false, false, 0xA, 9, 0x60); //  Ⅳ
+            assert_daa_bcd_difference(true, false, 0, 9, 0x60); //     Ⅴa
+            assert_daa_bcd_difference(true, false, 0x10, 9, 0x60); //  Ⅴb
+            assert_daa_bcd_difference(true, true, 0, 9, 0x66); //      Ⅵa
+            assert_daa_bcd_difference(true, true, 0x10, 9, 0x66); //   Ⅵb
+            assert_daa_bcd_difference(true, false, 0, 0xA, 0x66); //   Ⅶa
+            assert_daa_bcd_difference(true, false, 0xA, 0xA, 0x66); // Ⅶb
+            assert_daa_bcd_difference(true, true, 0, 0xA, 0x66); //    Ⅶc
+            assert_daa_bcd_difference(true, true, 0xA, 9, 0x66); //    Ⅶd
+            assert_daa_bcd_difference(false, false, 9, 0xA, 0x66); //  Ⅷa
+            assert_daa_bcd_difference(false, true, 9, 0xA, 0x66); //   Ⅷb
+            assert_daa_bcd_difference(false, true, 0xA, 9, 0x66); //   Ⅸ
+        }
+
+        fn assert_daa_bcd_difference(
+            carry_flag: bool,
+            half_cary_flag: bool,
+            high_nibble: u8,
+            low_nibble: u8,
+            expected: u8,
+        ) {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = high_nibble << 4 | low_nibble;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => carry_flag,
+                flags::HALF_CARRY => half_cary_flag
+            );
+            assert_eq!(cpu.bcd_difference(), expected)
+        }
+
+        #[test]
+        fn should_calculate_bcd_new_half_carry_daa() {
+            //             low
+            //    NF  HF  nibble  HF’
+            //    ▔▔  ▔▔  ▔▔▔▔▔▔  ▔▔▔
+            // Ⅰ  0   *   0-9     0
+            // Ⅱ  0   *   a-f     1
+            // Ⅲ  0   1   6-f     0
+            // Ⅳ  1   1   0-5     1
+
+            assert_bcd_new_half_carry(false, false, 9, false); //  Ⅰa
+            assert_bcd_new_half_carry(false, true, 9, false); //   Ⅰb
+            assert_bcd_new_half_carry(false, false, 0xA, true); // Ⅱa
+            assert_bcd_new_half_carry(false, true, 0xA, false); // Ⅱa
+            assert_bcd_new_half_carry(false, true, 6, false); //   Ⅲ
+            assert_bcd_new_half_carry(true, true, 0, true); //     Ⅳ
+            assert_bcd_new_half_carry(true, false, 0, false); //   Ⅴa
+            assert_bcd_new_half_carry(true, true, 5, true); //     Ⅴb
+            assert_bcd_new_half_carry(true, true, 6, false); //    Ⅴc
+        }
+
+        fn assert_bcd_new_half_carry(
+            was_subtraction: bool,
+            half_cary_flag: bool,
+            low_nibble: u8,
+            expected: bool,
+        ) {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = low_nibble & 0xF;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::ADD_SUBTRACT => was_subtraction,
+                flags::HALF_CARRY => half_cary_flag
+            );
+            assert_eq!(cpu.bcd_new_half_carry(), expected)
+        }
+
+        #[test]
+        fn should_calculate_bcd_bcd_new_carry_daa() {
+            //         high    low
+            //    CF  nibble  nibble  CF’
+            //    ▔▔  ▔▔▔▔▔▔  ▔▔▔▔▔▔  ▔▔▔
+            // Ⅰ  0   0-9     0-9     0
+            // Ⅱ  0   0-8     a-f     0
+            // Ⅲ  0   9-f     a-f     1
+            // Ⅳ  0   a-f     0-9     1
+            // Ⅴ  1     *       *     1
+
+            assert_bcd_new_carry(false, 0, 0, false); //   Ⅰ
+            assert_bcd_new_carry(false, 8, 0xA, false); // Ⅱ
+            assert_bcd_new_carry(false, 9, 0xA, true); //  Ⅲ
+            assert_bcd_new_carry(false, 0xA, 9, true); //  Ⅳ
+            assert_bcd_new_carry(true, 0, 0, true); //     Ⅴa
+            assert_bcd_new_carry(true, 0, 0xA, true); //   Ⅴb
+            assert_bcd_new_carry(true, 0xA, 0, true); //   Ⅴc
+            assert_bcd_new_carry(true, 0xA, 0xA, true); // Ⅴd
+        }
+
+        fn assert_bcd_new_carry(carry_flag: bool, high_nibble: u8, low_nibble: u8, expected: bool) {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.a = (high_nibble << 4) | low_nibble;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => carry_flag,
+            );
+            assert_eq!(cpu.bcd_new_carry(), expected)
+        }
+
+        #[test]
+        fn should_daa() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            // Example from the documentation:
+            // base10   BCD h   BCD l
+            //   15     0001    0101
+            // + 27   + 0010    0111
+            // ▔▔▔▔   ▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+            //   42     0011    1100  3C ──DAA──→ 0100 0010
+            cpu.registers.a = 0x3C;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x42);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_for_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0x0;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x0);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_for_negative() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0x81;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x81);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_and_set_carry_flag_after_add() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0xA1;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 1);
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_and_set_half_carry_flag_after_add() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0x0A;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x10);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_and_set_carry_flag_after_subtract() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0xF9;
+            cpu.registers.f = set_bits!(cpu.registers.f, flags::ADD_SUBTRACT => true);
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x99);
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_and_set_half_carry_flag_after_subtract() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0x13;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::ADD_SUBTRACT => true,
+                flags::HALF_CARRY => true
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 13);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_daa_and_unset_half_carry_flag_after_subtract() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 4 << 3 | 7);
+            cpu.registers.a = 0xC;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::ADD_SUBTRACT => true,
+                flags::HALF_CARRY => true
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 6);
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+        }
+
+        #[test]
+        fn should_cpl() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 5 << 3 | 7);
+            cpu.registers.a = 0xAA;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.a, 0x55);
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+        }
+
+        #[test]
+        fn should_scf() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 6 << 3 | 7);
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_ccf_set_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7 << 3 | 7);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::HALF_CARRY => true,
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_ccf_unset_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0, 7 << 3 | 7);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.r, 1);
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
         }
     }
 }
