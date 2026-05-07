@@ -755,6 +755,16 @@ where
                     flags::CARRY => !old_carry,
                 )
             }
+            (0, 2, 0) => {
+                // DJNZ
+                self.advance();
+                let offset = self.read_and_advance();
+                self.registers.b = self.registers.b.wrapping_sub(1);
+                if self.registers.b != 0 {
+                    self.registers.pc =
+                        self.registers.pc.wrapping_add_signed((offset as i8) as i16);
+                }
+            }
             _ => panic!("Unsupported instruction"),
         }
     }
@@ -4836,6 +4846,48 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn shoulld_djnz_if_b_becomes_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.b = 1;
+            cpu.bus.write8(0, 2 << 3);
+            cpu.bus.write8(1, 0x0B);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 2);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.b, 0);
+        }
+
+        #[test]
+        fn shoulld_djnz_forward_if_b_becomes_non_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.b = 2;
+            cpu.bus.write8(0, 2 << 3);
+            cpu.bus.write8(1, 0x0B);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0D);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.b, 1);
+        }
+        #[test]
+        fn shoulld_djnz_backward_if_b_becomes_non_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.b = 2;
+            cpu.registers.pc = 0xF0;
+            cpu.bus.write8(0xF0, 2 << 3);
+            cpu.bus.write8(0xF1, 0xF5); // -0x0B
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0xE7);
+            assert_eq!(cpu.registers.r, 1);
+            assert_eq!(cpu.registers.b, 1);
         }
     }
 }
