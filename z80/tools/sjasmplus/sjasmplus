@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Assembles Z80 source files using sjasmplus running in Docker.
+# Usage: sjasmplus [sjasmplus options] <source.asm>
+#
+# All paths passed as arguments are automatically resolved to absolute paths
+# and rewritten to /asm/<filename> so the container can find them.
+# Output files are written to the same directory as the source file.
+#
+# Examples:
+#   sjasmplus fibonacci.asm
+#   sjasmplus --lst fibonacci.asm
+
+if ! docker image inspect sjasmplus >/dev/null 2>&1; then
+    echo "sjasmplus image not found, building..." >&2
+    docker build -t sjasmplus "$(dirname "$0")"
+fi
+
+# Rewrite any file arguments to /asm/<basename> and mount their parent dirs.
+# For simplicity we mount the working directory as /asm.
+exec docker run --rm \
+    -v "$(pwd):/asm" \
+    -w /asm \
+    sjasmplus "$@"
