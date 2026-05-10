@@ -166,6 +166,12 @@ where
         self.subtract_u8_and_set_flags(minuend, subtrahend, use_carry)
     }
 
+    pub fn run(&mut self) {
+        while !self.registers.halted {
+            self.step();
+        }
+    }
+
     pub fn step(&mut self) {
         match decode::into_group_and_operands(self.bus.read8(self.registers.pc)) {
             (0, 0, 0) => {
@@ -4888,6 +4894,36 @@ mod tests {
             assert_eq!(cpu.registers.pc, 0xE7);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.b, 1);
+        }
+    }
+
+    mod phase1_tests {
+        use crate::{
+            bus::{Bus, TestBus},
+            cpu::Cpu,
+            registers::Registers,
+        };
+
+        #[test]
+        fn should_calculate_6th_fib_number() {
+            // this program calculates the Nth number of the Fibonacci
+            // number, assuming that the 0th element is 0.
+            // #  Fibonacci Number
+            // ▔  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+            // 0  0
+            // 1  1
+            // 2  1
+            // 3  2
+            // 4  3
+            // 5  5
+            // 6  8
+
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            const ROM: &[u8] = include_bytes!("../tools/sjasmplus/fib.bin");
+            cpu.bus.load(ROM);
+            cpu.run();
+
+            assert_eq!(8, cpu.registers.a);
         }
     }
 }
