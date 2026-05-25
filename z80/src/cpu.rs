@@ -1258,7 +1258,80 @@ where
                             self.registers.pc = self.registers.pc.wrapping_sub(2);
                         }
                     }
+
                     _ => panic!("Unsupported ED instruction"),
+                }
+            }
+            (3, 3, 5) => {
+                // DD Prefix
+                self.advance();
+                let opcode = self.read_and_advance();
+
+                match decode::into_group_and_operands(opcode) {
+                    (0, 4, 1) => {
+                        // LD IX, nnnn
+                        self.registers.ix = self.read_16_and_advance();
+                    }
+                    (0, 4, 2) => {
+                        // LD (nn), IX
+                        let address = self.read_16_and_advance();
+                        self.bus.write16(address, self.registers.ix);
+                    }
+                    (0, 5, 2) => {
+                        // LD IX, (nn)
+                        let address = self.read_16_and_advance();
+                        self.registers.ix = self.bus.read16(address);
+                    }
+                    (3, 7, 1) => {
+                        // LD SP, IX
+                        self.registers.sp = self.registers.ix;
+                    }
+                    (0, 6, 6) => {
+                        // LD (IX+d), n
+                        let offset = self.read_and_advance();
+                        let value = self.read_and_advance();
+
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.ix.wrapping_add_signed(signed_offset);
+                        self.bus.write8(address, value);
+                    }
+                    _ => panic!("Unsupported FD instruction"),
+                }
+            }
+            (3, 7, 5) => {
+                // FD Prefix
+                self.advance();
+                let opcode = self.read_and_advance();
+
+                match decode::into_group_and_operands(opcode) {
+                    (0, 4, 1) => {
+                        // LD IY, nnnn
+                        self.registers.iy = self.read_16_and_advance();
+                    }
+                    (0, 4, 2) => {
+                        // LD (nn), IY
+                        let address = self.read_16_and_advance();
+                        self.bus.write16(address, self.registers.iy);
+                    }
+                    (0, 5, 2) => {
+                        // LD IY, (nn)
+                        let address = self.read_16_and_advance();
+                        self.registers.iy = self.bus.read16(address);
+                    }
+                    (3, 7, 1) => {
+                        // LD SP, IY
+                        self.registers.sp = self.registers.iy;
+                    }
+                    (0, 6, 6) => {
+                        // LD (IY+d), n
+                        let offset = self.read_and_advance();
+                        let value = self.read_and_advance();
+
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.iy.wrapping_add_signed(signed_offset);
+                        self.bus.write8(address, value);
+                    }
+                    _ => panic!("Unsupported FD instruction"),
                 }
             }
             _ => panic!("Unsupported instruction"),
@@ -7590,6 +7663,183 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+    }
+    mod dd_prefix {
+        use crate::{
+            bus::{Bus, TestBus},
+            cpu::Cpu,
+            registers::Registers,
+        };
+
+        #[test]
+        fn should_ld_ix_nnnn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x21);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.ix, 0x1234);
+        }
+
+        #[test]
+        fn should_ld_nnnn_ix() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x22);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.registers.ix = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.ix, 0xC0DE);
+            assert_eq!(cpu.bus.read8(0x1234), 0xDE);
+            assert_eq!(cpu.bus.read8(0x1235), 0xC0);
+        }
+
+        #[test]
+        fn should_ld_ix_mmmm() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x2A);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.bus.write8(0x1234, 0xEF);
+            cpu.bus.write8(0x1235, 0xBE);
+            cpu.registers.ix = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.ix, 0xBEEF);
+            assert_eq!(cpu.bus.read8(0x1234), 0xEF);
+            assert_eq!(cpu.bus.read8(0x1235), 0xBE);
+        }
+
+        #[test]
+        fn should_ld_sp_ix() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xF9);
+            cpu.registers.sp = 0xDEAD;
+            cpu.registers.ix = 0xBEEF;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.sp, 0xBEEF);
+            assert_eq!(cpu.registers.ix, 0xBEEF);
+        }
+
+        #[test]
+        fn should_ld_ix_d_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x36);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.registers.ix = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.ix, 0xC0DE);
+            assert_eq!(cpu.bus.read8(0xC0DD), 0x12);
+        }
+    }
+
+    mod fd_prefix {
+        use crate::{
+            bus::{Bus, TestBus},
+            cpu::Cpu,
+            registers::Registers,
+        };
+
+        #[test]
+        fn should_ld_iy_nnnn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x21);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.iy, 0x1234);
+        }
+
+        #[test]
+        fn should_ld_nnnn_iy() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x22);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.registers.iy = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.iy, 0xC0DE);
+            assert_eq!(cpu.bus.read8(0x1234), 0xDE);
+            assert_eq!(cpu.bus.read8(0x1235), 0xC0);
+        }
+
+        #[test]
+        fn should_ld_iy_mmmm() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x2A);
+            cpu.bus.write8(0x02, 0x34);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.bus.write8(0x1234, 0xEF);
+            cpu.bus.write8(0x1235, 0xBE);
+            cpu.registers.iy = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.iy, 0xBEEF);
+            assert_eq!(cpu.bus.read8(0x1234), 0xEF);
+            assert_eq!(cpu.bus.read8(0x1235), 0xBE);
+        }
+
+        #[test]
+        fn should_ld_sp_iy() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xF9);
+            cpu.registers.sp = 0xDEAD;
+            cpu.registers.iy = 0xBEEF;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.sp, 0xBEEF);
+            assert_eq!(cpu.registers.iy, 0xBEEF);
+        }
+
+        #[test]
+        fn should_ld_iy_d_n() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x36);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.registers.iy = 0xC0DE;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x04);
+            assert_eq!(cpu.registers.iy, 0xC0DE);
+            assert_eq!(cpu.bus.read8(0xC0DD), 0x12);
         }
     }
 }
