@@ -154,6 +154,40 @@ where
     }
 
     #[inline]
+    fn subtract_u16_and_set_flags(
+        &mut self,
+        minuend: u16,
+        subtrahend: u16,
+        use_borrow: bool,
+    ) -> u16 {
+        let borrow_in: u16 = if use_borrow && bit_is_set(self.registers.f, flags::CARRY) {
+            1
+        } else {
+            0
+        };
+
+        let full: u32 = (minuend as u32).wrapping_sub(subtrahend as u32 + borrow_in as u32);
+        let difference = full as u16;
+
+        // If the inputs have different signs, but the difference
+        // has the same sign, then we overflowed
+        let overflow = ((minuend ^ subtrahend) & (minuend ^ difference) & 0x8000) != 0;
+        let half_carry = (minuend & 0x0FFF) < ((subtrahend & 0x0FFF) + borrow_in);
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::CARRY => full > 0xFFFF,
+            flags::ADD_SUBTRACT => true,
+            flags::PARITY_OVERFLOW => overflow,
+            flags::HALF_CARRY => half_carry,
+            flags::ZERO => difference == 0,
+            flags::SIGN => is_set(difference, 0x8000),
+        );
+
+        difference
+    }
+
+    #[inline]
     fn subtract_u8_by_index_and_set_flags(
         &mut self,
         minuend_index: u8,
@@ -925,13 +959,450 @@ where
                         value = set_bits!(value, index => true);
                         self.write_indexed_register(register, value);
                     }
-                    _ => panic!("CB Unsupported instruction"),
+                    _ => panic!("Unsupported CB instruction"),
+                }
+            }
+            (3, 5, 5) => {
+                // ED Prefix
+                self.advance();
+                let opcode = self.read_and_advance();
+
+                match decode::into_group_and_operands(opcode) {
+                    (1, 0, 4) => {
+                        // NEG
+                        let before = self.registers.a;
+                        self.registers.a = self.registers.a.wrapping_neg();
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(self.registers.a, 7),
+                            flags::ZERO => self.registers.a == 0,
+                            flags::HALF_CARRY =>  before & 0x0F != 0x00,
+                            flags::PARITY_OVERFLOW => before == 0x80,
+                            flags::ADD_SUBTRACT => true,
+                            flags::CARRY => before != 0x0,
+                        );
+                    }
+                    (1, 1, 5) => {
+                        // RETI
+                        self.registers.iff1 = self.registers.iff2;
+                        self.ret();
+                    }
+                    (1, 0, 5) => {
+                        // RETN
+                        self.registers.iff1 = self.registers.iff2;
+                        self.ret();
+                    }
+                    (1, 0, 6) => {
+                        // IM 0
+                        self.registers.im = 0;
+                    }
+                    (1, 2, 6) => {
+                        // IM 1
+                        self.registers.im = 1;
+                    }
+                    (1, 3, 6) => {
+                        // IM 2
+                        self.registers.im = 2;
+                    }
+                    (1, 0, 7) => {
+                        // LD I, A
+                        self.registers.i = self.registers.a
+                    }
+                    (1, 1, 7) => {
+                        // LD R, A
+                        self.registers.r = self.registers.a
+                    }
+                    (1, 2, 7) => {
+                        // LD A, I
+                        self.registers.a = self.registers.i;
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(self.registers.a, 7),
+                            flags::ZERO => self.registers.a == 0,
+                            flags::HALF_CARRY =>  false,
+                            flags::PARITY_OVERFLOW => self.registers.iff2,
+                            flags::ADD_SUBTRACT => false,
+                        );
+                    }
+                    (1, 3, 7) => {
+                        // LD A, R
+                        self.registers.a = self.registers.r;
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(self.registers.a, 7),
+                            flags::ZERO => self.registers.a == 0,
+                            flags::HALF_CARRY =>  false,
+                            flags::PARITY_OVERFLOW => self.registers.iff2,
+                            flags::ADD_SUBTRACT => false,
+                        );
+                    }
+                    (1, register, 0) => {
+                        // IN r, (C)
+                        let port = self.registers.bc();
+                        let value = self.bus.read_io(port);
+                        self.write_indexed_register(register, value);
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(value, 7),
+                            flags::ZERO => value == 0,
+                            flags::HALF_CARRY =>  false,
+                            flags::PARITY_OVERFLOW => value.count_ones().is_multiple_of(2),
+                            flags::ADD_SUBTRACT => false,
+                        );
+                    }
+                    (1, register, 1) => {
+                        // OUT (C), r
+                        let port = self.registers.bc();
+                        let value = self.read_indexed_register(register);
+                        self.bus.write_io(port, value);
+                    }
+                    (1, pair @ (0 | 2 | 4 | 6), 2) => {
+                        // SBC HL, rp
+                        let subtrahend = match pair {
+                            0 => self.registers.bc(),
+                            2 => self.registers.de(),
+                            4 => self.registers.hl(),
+                            6 => self.registers.sp,
+                            _ => unreachable!(),
+                        };
+
+                        let result =
+                            self.subtract_u16_and_set_flags(self.registers.hl(), subtrahend, true);
+                        self.registers.set_hl(result);
+                    }
+                    (1, pair @ (1 | 3 | 5 | 7), 2) => {
+                        // ADC HL, rp
+                        let addend = match pair {
+                            1 => self.registers.bc(),
+                            3 => self.registers.de(),
+                            5 => self.registers.hl(),
+                            7 => self.registers.sp,
+                            _ => unreachable!(),
+                        };
+
+                        let augend = self.registers.hl();
+                        let sum = self.add_u16_and_set_flags(augend, addend, true);
+                        self.registers.set_hl(sum);
+
+                        let augend_negative = is_set(augend, 0x8000);
+                        let addend_negative = is_set(addend, 0x8000);
+                        let sum_negative = is_set(sum, 0x8000);
+
+                        let overflow = (augend_negative == addend_negative)
+                            && (augend_negative != sum_negative);
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::PARITY_OVERFLOW => overflow,
+                            flags::ZERO => sum == 0,
+                            flags::SIGN => is_set(sum, 0x8000),
+                        );
+                    }
+                    (1, pair @ (0 | 2 | 4 | 6), 3) => {
+                        // LD (nn), rp
+                        let address = self.read_16_and_advance();
+                        let value = match pair {
+                            0 => self.registers.bc(),
+                            2 => self.registers.de(),
+                            4 => self.registers.hl(),
+                            6 => self.registers.sp,
+                            _ => unreachable!(),
+                        };
+                        self.bus.write16(address, value);
+                    }
+                    (1, pair @ (1 | 3 | 5 | 7), 3) => {
+                        // LD rp, (nn)
+                        let address = self.read_16_and_advance();
+                        let value = self.bus.read16(address);
+                        match pair {
+                            1 => self.registers.set_bc(value),
+                            3 => self.registers.set_de(value),
+                            5 => self.registers.set_hl(value),
+                            7 => self.registers.sp = value,
+                            _ => unreachable!(),
+                        }
+                    }
+                    (1, 5, 7) => {
+                        // RLD
+                        let value = self.bus.read8(self.registers.hl());
+                        let acc_low_nybble = self.registers.a & 0x0F;
+                        let value_high_nybble = value >> 4;
+                        let value_low_nybble = value & 0x0F;
+
+                        let new_value = value_low_nybble << 4 | acc_low_nybble;
+                        let new_acc = (self.registers.a & 0xF0) | value_high_nybble;
+
+                        self.bus.write8(self.registers.hl(), new_value);
+                        self.registers.a = new_acc;
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(new_acc, 7),
+                            flags::ZERO => new_acc == 0,
+                            flags::HALF_CARRY =>  false,
+                            flags::PARITY_OVERFLOW => new_acc.count_ones().is_multiple_of(2),
+                            flags::ADD_SUBTRACT => false,
+                        );
+                    }
+                    (1, 4, 7) => {
+                        // RRD
+                        let value = self.bus.read8(self.registers.hl());
+                        let acc_low_nybble = self.registers.a & 0x0F;
+                        let value_high_nybble = value >> 4;
+                        let value_low_nybble = value & 0x0F;
+
+                        let new_value = acc_low_nybble << 4 | value_high_nybble;
+                        let new_acc = (self.registers.a & 0xF0) | value_low_nybble;
+
+                        self.bus.write8(self.registers.hl(), new_value);
+                        self.registers.a = new_acc;
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::SIGN => bit_is_set(new_acc, 7),
+                            flags::ZERO => new_acc == 0,
+                            flags::HALF_CARRY =>  false,
+                            flags::PARITY_OVERFLOW => new_acc.count_ones().is_multiple_of(2),
+                            flags::ADD_SUBTRACT => false,
+                        );
+                    }
+                    (2, 4, 0) => {
+                        // LDI
+                        self.ldi();
+                    }
+                    (2, 6, 0) => {
+                        // LDIR
+                        self.ldi();
+                        if bit_is_set(self.registers.f, flags::PARITY_OVERFLOW) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 5, 0) => {
+                        // LDD
+                        self.ldd();
+                    }
+                    (2, 7, 0) => {
+                        // LDDR
+                        self.ldd();
+                        if bit_is_set(self.registers.f, flags::PARITY_OVERFLOW) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 4, 1) => {
+                        // CPI
+                        self.cpi();
+                    }
+                    (2, 6, 1) => {
+                        // CPIR
+                        self.cpi();
+                        if bit_is_set(self.registers.f, flags::PARITY_OVERFLOW)
+                            && !bit_is_set(self.registers.f, flags::ZERO)
+                        {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 5, 1) => {
+                        // CPD
+                        self.cpd();
+                    }
+                    (2, 7, 1) => {
+                        // CPDR
+                        self.cpd();
+                        if bit_is_set(self.registers.f, flags::PARITY_OVERFLOW)
+                            && !bit_is_set(self.registers.f, flags::ZERO)
+                        {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 4, 2) => {
+                        // INI
+                        self.ini()
+                    }
+                    (2, 6, 2) => {
+                        // INIR
+                        self.ini();
+                        if !bit_is_set(self.registers.f, flags::ZERO) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 5, 2) => {
+                        // IND
+                        self.ind();
+                    }
+                    (2, 7, 2) => {
+                        // INDR
+                        self.ind();
+                        if !bit_is_set(self.registers.f, flags::ZERO) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 4, 3) => {
+                        // OUTI
+                        self.outi();
+                    }
+                    (2, 6, 3) => {
+                        // OTIR
+                        self.outi();
+                        if !bit_is_set(self.registers.f, flags::ZERO) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    (2, 5, 3) => {
+                        // OUTD
+                        self.outd();
+                    }
+                    (2, 7, 3) => {
+                        // OTDR
+                        self.outd();
+                        if !bit_is_set(self.registers.f, flags::ZERO) {
+                            self.registers.pc = self.registers.pc.wrapping_sub(2);
+                        }
+                    }
+                    _ => panic!("Unsupported ED instruction"),
                 }
             }
             _ => panic!("Unsupported instruction"),
         }
     }
 
+    #[inline]
+    fn ldi(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        self.bus.write8(self.registers.de(), value);
+        self.registers.set_hl(self.registers.hl().wrapping_add(1));
+        self.registers.set_de(self.registers.de().wrapping_add(1));
+        self.registers.set_bc(self.registers.bc().wrapping_sub(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => self.registers.bc() != 0,
+            flags::ADD_SUBTRACT => false,
+        );
+    }
+
+    #[inline]
+    fn ldd(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        self.bus.write8(self.registers.de(), value);
+
+        self.registers.set_hl(self.registers.hl().wrapping_sub(1));
+        self.registers.set_de(self.registers.de().wrapping_sub(1));
+        self.registers.set_bc(self.registers.bc().wrapping_sub(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => self.registers.bc() != 0,
+            flags::ADD_SUBTRACT => false,
+        );
+    }
+
+    #[inline]
+    fn cpi(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        let difference = self.registers.a.wrapping_sub(value);
+
+        self.registers.set_hl(self.registers.hl().wrapping_add(1));
+        self.registers.set_bc(self.registers.bc().wrapping_sub(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(difference, 7),
+            flags::ZERO => difference == 0,
+            flags::HALF_CARRY => (self.registers.a & 0x0F) < (value & 0x0F),
+            flags::PARITY_OVERFLOW => self.registers.bc() != 0,
+            flags::ADD_SUBTRACT => true,
+        );
+    }
+
+    #[inline]
+    fn cpd(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        let difference = self.registers.a.wrapping_sub(value);
+
+        self.registers.set_hl(self.registers.hl().wrapping_sub(1));
+        self.registers.set_bc(self.registers.bc().wrapping_sub(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(difference, 7),
+            flags::ZERO => difference == 0,
+            flags::HALF_CARRY => (self.registers.a & 0x0F) < (value & 0x0F),
+            flags::PARITY_OVERFLOW => self.registers.bc() != 0,
+            flags::ADD_SUBTRACT => true,
+        );
+    }
+
+    #[inline]
+    fn ini(&mut self) {
+        let value = self.bus.read_io(self.registers.bc());
+        self.bus.write8(self.registers.hl(), value);
+        self.registers.set_hl(self.registers.hl().wrapping_add(1));
+        self.registers.b = self.registers.b.wrapping_sub(1);
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(self.registers.b, 7),
+            flags::ZERO => self.registers.b == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => false,
+            flags::ADD_SUBTRACT => bit_is_set(value, 7),
+        );
+    }
+
+    #[inline]
+    fn ind(&mut self) {
+        let value = self.bus.read_io(self.registers.bc());
+        self.bus.write8(self.registers.hl(), value);
+        self.registers.set_hl(self.registers.hl().wrapping_sub(1));
+        self.registers.b = self.registers.b.wrapping_sub(1);
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(self.registers.b, 7),
+            flags::ZERO => self.registers.b == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => false,
+            flags::ADD_SUBTRACT => bit_is_set(value, 7),
+        );
+    }
+
+    #[inline]
+    fn outi(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        self.registers.b = self.registers.b.wrapping_sub(1);
+        self.bus.write_io(self.registers.bc(), value);
+        self.registers.set_hl(self.registers.hl().wrapping_add(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(self.registers.b, 7),
+            flags::ZERO => self.registers.b == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => false,
+            flags::ADD_SUBTRACT => bit_is_set(value, 7),
+        );
+    }
+
+    #[inline]
+    fn outd(&mut self) {
+        let value = self.bus.read8(self.registers.hl());
+        self.registers.b = self.registers.b.wrapping_sub(1);
+        self.bus.write_io(self.registers.bc(), value);
+        self.registers.set_hl(self.registers.hl().wrapping_sub(1));
+
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => bit_is_set(self.registers.b, 7),
+            flags::ZERO => self.registers.b == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => false,
+            flags::ADD_SUBTRACT => bit_is_set(value, 7),
+        );
+    }
+
+    #[inline]
     fn set_rotate_flags(&mut self, new_carry: bool) {
         self.registers.f = set_bits!(
             self.registers.f,
@@ -5539,6 +6010,1586 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
             assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+    }
+
+    mod ed_prefix {
+        use crate::{
+            bus::{Bus, TestBus},
+            cpu::Cpu,
+            flags::{self, bit_is_set},
+            registers::Registers,
+            set_bits,
+        };
+
+        #[test]
+        fn should_neg_positive_value() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x44);
+            cpu.registers.a = 0x05;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.a, 0xFB);
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_neg_negative_value() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x44);
+            cpu.registers.a = 0xFB;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.a, 0x05);
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_neg_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x44);
+            cpu.registers.a = 0x0;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.a, 0x0);
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_neg_overflow() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x44);
+            cpu.registers.a = 0x80;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0x80);
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_reti() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.bus.write8(0xC0DE, 0xED);
+            cpu.bus.write8(0xC0DF, 0x4D);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            cpu.registers.iff1 = false;
+            cpu.registers.iff2 = true;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert!(cpu.registers.iff1);
+            assert!(cpu.registers.iff2);
+        }
+
+        #[test]
+        fn should_retn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 0xDEAB;
+            cpu.registers.pc = 0xC0DE;
+            cpu.bus.write8(0xC0DE, 0xED);
+            cpu.bus.write8(0xC0DF, 0x45);
+            cpu.bus.write8(cpu.registers.sp, 0xEF);
+            cpu.bus.write8(cpu.registers.sp + 1, 0xBE);
+
+            cpu.registers.iff1 = false;
+            cpu.registers.iff2 = true;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0xBEEF);
+            assert_eq!(cpu.registers.sp, 0xDEAD);
+            assert!(cpu.registers.iff1);
+            assert!(cpu.registers.iff2);
+        }
+
+        #[test]
+        fn should_im0() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x46);
+            cpu.registers.im = 0xAA;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.im, 0x00);
+        }
+
+        #[test]
+        fn should_im1() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x56);
+            cpu.registers.im = 0xAA;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.im, 0x01);
+        }
+
+        #[test]
+        fn should_im2() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x5E);
+            cpu.registers.im = 0xAA;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.im, 0x02);
+        }
+
+        #[test]
+        fn should_ld_r_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x4F);
+            cpu.registers.a = 0xAA;
+            cpu.registers.r = 0x00;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0xAA);
+            assert_eq!(cpu.registers.r, 0xAA);
+        }
+
+        #[test]
+        fn should_ld_a_i() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x57);
+            cpu.registers.a = 0x00;
+            cpu.registers.i = 0xAA;
+            cpu.registers.iff2 = true;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0xAA);
+            assert_eq!(cpu.registers.i, 0xAA);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ld_a_i_when_i_is_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x57);
+            cpu.registers.a = 0x00;
+            cpu.registers.i = 0x00;
+            cpu.registers.iff2 = false;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0x00);
+            assert_eq!(cpu.registers.i, 0x00);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        ///////////////////////////////////////////////////
+        #[test]
+        fn should_ld_a_r() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x5F);
+            cpu.registers.a = 0x00;
+            cpu.registers.r = 0xAA;
+            cpu.registers.iff2 = true;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0xAB);
+            assert_eq!(cpu.registers.r, 0xAB);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ld_a_r_when_i_is_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x5F);
+            cpu.registers.a = 0x00;
+            cpu.registers.r = 0x7F;
+            cpu.registers.iff2 = false;
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.a, 0x00);
+            assert_eq!(cpu.registers.r, 0x00);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_in_r_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x50);
+            cpu.registers.b = 0xDE;
+            cpu.registers.c = 0xAD;
+            cpu.bus.write_io(0xDEAD, 0xAA);
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.b, 0xDE);
+            assert_eq!(cpu.registers.c, 0xAD);
+            assert_eq!(cpu.registers.d, 0xAA);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_out_c_r() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x51);
+            cpu.registers.b = 0xDE;
+            cpu.registers.c = 0xAD;
+            cpu.registers.d = 0xAA;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.b, 0xDE);
+            assert_eq!(cpu.registers.c, 0xAD);
+            assert_eq!(cpu.registers.d, 0xAA);
+            assert_eq!(cpu.bus.read_io(0xDEAD), 0xAA);
+        }
+
+        #[test]
+        fn should_sbc_hl_rp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x42);
+            cpu.registers.set_hl(0xDEAD);
+            cpu.registers.set_bc(0xBEEF);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0xBEEF);
+            assert_eq!(cpu.registers.hl(), 0x1FBD);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_sbc_hl_rp_with_overflow() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x42);
+            cpu.registers.set_hl(0x8000);
+            cpu.registers.set_bc(0x0001);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.registers.hl(), 0x7FFF);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_sbc_hl_rp_to_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x42);
+            cpu.registers.set_hl(0x0001);
+            cpu.registers.set_bc(0x0001);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.registers.hl(), 0x0);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_sbc_hl_rp_to_negative() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x42);
+            cpu.registers.set_hl(0x0000);
+            cpu.registers.set_bc(0x0001);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.registers.hl(), 0xFFFF);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_adc_hl_rp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x4A);
+            cpu.registers.set_hl(0xAEA9);
+            cpu.registers.set_bc(0x1234);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x1234);
+            assert_eq!(cpu.registers.hl(), 0xC0DE);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_adc_hl_rp_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x4A);
+            cpu.registers.set_hl(0xFFFF);
+            cpu.registers.set_bc(0x0001);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.registers.hl(), 0x0000);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_adc_hl_rp_overflow() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x4A);
+            cpu.registers.set_hl(0x7FFF);
+            cpu.registers.set_bc(0x0001);
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false
+            );
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.registers.hl(), 0x8000);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_ld_nn_rp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x43);
+            cpu.bus.write8(0x02, 0xAD);
+            cpu.bus.write8(0x03, 0xDE);
+            cpu.registers.set_bc(0xBEEF);
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.bc(), 0xBEEF);
+            assert_eq!(cpu.bus.read16(0xDEAD), 0xBEEF);
+        }
+
+        #[test]
+        fn should_ld_rp_nn() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x4B);
+            cpu.bus.write8(0x02, 0xAD);
+            cpu.bus.write8(0x03, 0xDE);
+            cpu.bus.write16(0xDEAD, 0xBEEF);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.bc(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_rdd() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x6F);
+            cpu.bus.write16(0xBEEF, 0x12);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x34;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x24);
+            assert_eq!(cpu.registers.a, 0x31);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_rdd_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x6F);
+            cpu.bus.write16(0xBEEF, 0x01);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x02;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x12);
+            assert_eq!(cpu.registers.a, 0x0);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_rdd_neg() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x6F);
+            cpu.bus.write16(0xBEEF, 0x12);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x84;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x24);
+            assert_eq!(cpu.registers.a, 0x81);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_rrd() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x67);
+            cpu.bus.write16(0xBEEF, 0x12);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x34;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x41);
+            assert_eq!(cpu.registers.a, 0x32);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_rrd_zero() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x67);
+            cpu.bus.write16(0xBEEF, 0x10);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x04;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x41);
+            assert_eq!(cpu.registers.a, 0x00);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_rrd_sign() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0x67);
+            cpu.bus.write16(0xBEEF, 0x12);
+            cpu.registers.set_hl(0xBEEF);
+            cpu.registers.a = 0x84;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xBEEF);
+            assert_eq!(cpu.bus.read8(cpu.registers.hl()), 0x41);
+            assert_eq!(cpu.registers.a, 0x82);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            assert!(!bit_is_set(cpu.registers.f, flags::CARRY));
+        }
+
+        #[test]
+        fn should_ldi() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA0);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.de(), 0x2001);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ldi_last_byte() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA0);
+            cpu.bus.write8(0x1000, 1);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0001);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.de(), 0x2001);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ldir_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB0);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x00);
+            // assert_eq!(cpu.registers.hl(), 0x1004);
+            // assert_eq!(cpu.registers.de(), 0x2004);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.de(), 0x2001);
+            // assert_eq!(cpu.registers.bc(), 0x0000);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+            assert_eq!(cpu.bus.read8(0x2001), 0);
+            assert_eq!(cpu.bus.read8(0x2002), 0);
+            assert_eq!(cpu.bus.read8(0x2003), 0);
+            // assert_eq!(cpu.bus.read8(0x2001), 2);
+            // assert_eq!(cpu.bus.read8(0x2002), 3);
+            // assert_eq!(cpu.bus.read8(0x2003), 4);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            // assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ldir() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB0);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.hl(), 0x1004);
+            assert_eq!(cpu.registers.de(), 0x2004);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+            assert_eq!(cpu.bus.read8(0x2001), 2);
+            assert_eq!(cpu.bus.read8(0x2002), 3);
+            assert_eq!(cpu.bus.read8(0x2003), 4);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ldd() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA8);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.de(), 0x1FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ldd_last_byte() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA8);
+            cpu.bus.write8(0x1000, 1);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0001);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.de(), 0x1FFF);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_lddr_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB8);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0x0FFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x00);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.de(), 0x1FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+            assert_eq!(cpu.bus.read8(0x1FFF), 0);
+            assert_eq!(cpu.bus.read8(0x1FFE), 0);
+            assert_eq!(cpu.bus.read8(0x1FFD), 0);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_lddr() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB8);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0x0FFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_de(0x2000);
+            cpu.registers.set_bc(0x0004);
+
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.hl(), 0x0FFC);
+            assert_eq!(cpu.registers.de(), 0x1FFC);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+            assert_eq!(cpu.bus.read8(0x2000), 1);
+            assert_eq!(cpu.bus.read8(0x1FFF), 2);
+            assert_eq!(cpu.bus.read8(0x1FFE), 3);
+            assert_eq!(cpu.bus.read8(0x1FFD), 4);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpi() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpi_eq() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 1;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpi_lt() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 0;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpir_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0x1001);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpir() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1004);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpir_exiting_early() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB1);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x1001, 2);
+            cpu.bus.write8(0x1002, 3);
+            cpu.bus.write8(0x1003, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 2;
+
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x1002);
+            assert_eq!(cpu.registers.bc(), 0x0002);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpd() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0xFFFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpd_eq() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0xFFFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 1;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpd_lt() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0xFFFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 0;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpdr_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0x0FFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0x0FFF);
+            assert_eq!(cpu.registers.bc(), 0x0003);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpdr() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0x0FFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 4;
+
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFC);
+            assert_eq!(cpu.registers.bc(), 0x0000);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_cpdr_exiting_early() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB9);
+            cpu.bus.write8(0x1000, 1);
+            cpu.bus.write8(0x0FFF, 2);
+            cpu.bus.write8(0x0FFE, 3);
+            cpu.bus.write8(0x0FFD, 4);
+            cpu.registers.set_hl(0x1000);
+            cpu.registers.set_bc(0x0004);
+            cpu.registers.a = 2;
+
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0x0FFE);
+            assert_eq!(cpu.registers.bc(), 0x0002);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ini() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA2);
+            cpu.registers.set_bc(0x0404);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0404, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0304);
+            assert_eq!(cpu.bus.read_io(0x0404), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ini_last_byte() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA2);
+            cpu.registers.set_bc(0x0101);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0001, 0x82);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.bus.read_io(0x0101), 0x82);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x82);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_inir_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB2);
+            cpu.registers.set_bc(0x0404);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0404, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0304);
+            assert_eq!(cpu.bus.read_io(0x0004), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_inir() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB2);
+            cpu.registers.set_bc(0x0404);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0404, 0x12);
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0E2);
+            assert_eq!(cpu.registers.bc(), 0x0004);
+            assert_eq!(cpu.bus.read_io(0x0404), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DF), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0E0), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0E1), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ind() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xAA);
+            cpu.registers.set_bc(0x0404);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0004, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0304);
+            assert_eq!(cpu.bus.read_io(0x0404), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ind_last_byte() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xAA);
+            cpu.registers.set_bc(0x0101);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0001, 0x82);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0001);
+            assert_eq!(cpu.bus.read_io(0x0101), 0x82);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x82);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_indr_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xBA);
+            cpu.registers.set_bc(0x0204);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0004, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0104);
+            assert_eq!(cpu.bus.read_io(0x0004), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_indr() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xBA);
+            cpu.registers.set_bc(0x0420);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write_io(0x0420, 0x12);
+
+            cpu.step();
+            cpu.step();
+            cpu.step();
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DA);
+            assert_eq!(cpu.registers.bc(), 0x0020);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DE), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DD), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DC), 0x12);
+            assert_eq!(cpu.bus.read8(0xC0DB), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_outi() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA3);
+            cpu.registers.set_bc(0x0420);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write16(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0320);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_outi_last() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xA3);
+            cpu.registers.set_bc(0x0120);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write16(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0020);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_otir_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB3);
+            cpu.registers.set_bc(0x0420);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write8(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0320);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_otir_complete() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xB3);
+            cpu.registers.set_bc(0x0120);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write8(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.hl(), 0xC0DF);
+            assert_eq!(cpu.registers.bc(), 0x0020);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_outd() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xAB);
+            cpu.registers.set_bc(0x0420);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write16(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0320);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_outd_last() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xAB);
+            cpu.registers.set_bc(0x0120);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write16(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x2);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0020);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_otdr_once() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xBB);
+            cpu.registers.set_bc(0x0420);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write8(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x0);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0320);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_otdr_complete() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xED);
+            cpu.bus.write8(0x01, 0xBB);
+            cpu.registers.set_bc(0x0120);
+            cpu.registers.set_hl(0xC0DE);
+            cpu.bus.write8(0xC0DE, 0x12);
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x02);
+            assert_eq!(cpu.registers.hl(), 0xC0DD);
+            assert_eq!(cpu.registers.bc(), 0x0020);
+            assert_eq!(cpu.bus.read_io(0x0420), 0x12);
+
+            assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
         }
     }
 }

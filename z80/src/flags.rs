@@ -5,12 +5,18 @@ pub const HALF_CARRY: u8 = 4;
 pub const ZERO: u8 = 6;
 pub const SIGN: u8 = 7;
 
-pub fn is_set(value: u8, test: u8) -> bool {
+use core::ops::BitAnd;
+
+pub fn is_set<T: BitAnd<Output = T> + PartialEq + Copy>(value: T, test: T) -> bool {
     (value & test) == test
 }
 
-pub fn bit_is_set(value: u8, index: u8) -> bool {
-    is_set(value, 1 << index)
+pub fn bit_is_set<T>(value: T, index: u8) -> bool
+where
+    T: core::ops::BitAnd<Output = T> + core::ops::Shl<u8, Output = T> + PartialEq + Copy + From<u8>,
+{
+    let mask = T::from(1u8) << index;
+    is_set(value, mask)
 }
 
 pub fn get_bit(value: u8, bit: u8) -> bool {
