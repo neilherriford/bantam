@@ -1354,6 +1354,25 @@ where
                         );
                         self.bus.write8(address, after);
                     }
+                    (1, register, 6) if register != 6 => {
+                        // LD r, (IX + d)
+                        let offset = self.read_and_advance();
+
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.ix.wrapping_add_signed(signed_offset);
+                        let value = self.bus.read8(address);
+
+                        self.write_indexed_register(register, value);
+                    }
+                    (1, 6, register) if register != 6 => {
+                        // LD (IX + d), r
+                        let offset = self.read_and_advance();
+                        let value = self.read_indexed_register(register);
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.ix.wrapping_add_signed(signed_offset);
+
+                        self.bus.write8(address, value);
+                    }
                     _ => panic!("Unsupported DD instruction"),
                 }
             }
@@ -1448,6 +1467,25 @@ where
                             flags::SIGN => is_set(after, 0x80),
                         );
                         self.bus.write8(address, after);
+                    }
+                    (1, register, 6) if register != 6 => {
+                        // LD r, (IY + d)
+                        let offset = self.read_and_advance();
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.iy.wrapping_add_signed(signed_offset);
+                        let value = self.bus.read8(address);
+
+                        self.write_indexed_register(register, value);
+                    }
+                    (1, 6, register) if register != 6 => {
+                        // LD (IY + d), r
+
+                        let offset = self.read_and_advance();
+                        let value = self.read_indexed_register(register);
+                        let signed_offset = (offset as i8) as i16;
+                        let address = self.registers.iy.wrapping_add_signed(signed_offset);
+
+                        self.bus.write8(address, value);
                     }
                     _ => panic!("Unsupported FD instruction"),
                 }
@@ -5674,7 +5712,7 @@ mod tests {
         }
 
         #[test]
-        fn shoulld_djnz_if_b_becomes_zero() {
+        fn should_djnz_if_b_becomes_zero() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.registers.b = 1;
             cpu.bus.write8(0, 2 << 3);
@@ -7788,7 +7826,7 @@ mod tests {
             bus::{Bus, TestBus},
             cpu::Cpu,
             flags::{self, bit_is_set},
-            registers::Registers,
+            registers::{self, Registers},
         };
 
         #[test]
@@ -8110,6 +8148,67 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ld_r_ix_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x46);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x1233, 0x01);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x03);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.registers.b, 0x01);
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported DD instruction")]
+        fn should_ld_6_ix_d_should_panic() {
+            // 0x7F 1,6,6 is HALT, no (HL)
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x76);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x1233, 0x01);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.set_hl(0x9876);
+
+            cpu.step();
+        }
+
+        #[test]
+        fn should_ld_ix_d_r() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x70);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.registers.b = 0x12;
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x03);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x12);
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported DD instruction")]
+        fn should_ld_ix_d_6_should_panic() {
+            // 0x7F 1,6,6 is HALT, no (HL)
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0x76);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.registers.set_hl(0x9876);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
         }
     }
 
@@ -8440,6 +8539,66 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_ld_r_iy_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x46);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x1233, 0x01);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x03);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.registers.b, 0x01);
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported FD instruction")]
+        fn should_ld_r_iy_d_6_should_panic() {
+            // 0x7F 1,6,6 is HALT, no (HL)
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x76);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.registers.set_hl(0x9876);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+        }
+
+        #[test]
+        fn should_ld_iy_d_r() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x70);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.registers.b = 0x12;
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x03);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x12);
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported FD instruction")]
+        fn should_ld_iy_d_6_should_panic() {
+            // 0x7F 1,6,6 is HALT, no (HL)
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0x76);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.registers.set_hl(0x9876);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
         }
     }
 }
