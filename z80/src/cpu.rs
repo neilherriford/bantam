@@ -502,7 +502,7 @@ where
                 self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
             }
             (0, pair @ (1 | 3 | 5 | 7), 1) => {
-                // ADD HL, s
+                // ADD HL, rp
                 self.advance();
                 let addend = match pair {
                     1 => self.registers.bc(),
@@ -514,6 +514,28 @@ where
 
                 let sum = self.add_u16_and_set_flags(self.registers.hl(), addend, false);
                 self.registers.set_hl(sum);
+            }
+            (0, pair @ (0 | 2 | 4 | 6), 3) => {
+                // INC rp
+                self.advance();
+                match pair {
+                    0 => self.registers.set_bc(self.registers.bc().wrapping_add(1)),
+                    2 => self.registers.set_de(self.registers.de().wrapping_add(1)),
+                    4 => self.registers.set_hl(self.registers.hl().wrapping_add(1)),
+                    6 => self.registers.sp = self.registers.sp.wrapping_add(1),
+                    _ => unreachable!(),
+                }
+            }
+            (0, pair @ (1 | 3 | 5 | 7), 3) => {
+                // DEC rp
+                self.advance();
+                match pair {
+                    1 => self.registers.set_bc(self.registers.bc().wrapping_sub(1)),
+                    3 => self.registers.set_de(self.registers.de().wrapping_sub(1)),
+                    5 => self.registers.set_hl(self.registers.hl().wrapping_sub(1)),
+                    7 => self.registers.sp = self.registers.sp.wrapping_sub(1),
+                    _ => unreachable!(),
+                }
             }
             (3, 0, 3) => {
                 // JP nn
@@ -4254,6 +4276,102 @@ mod tests {
             assert_eq!(cpu.registers.pc, 1);
             assert_eq!(cpu.registers.r, 1);
             assert_eq!(cpu.registers.hl(), 0xBEEF);
+        }
+
+        #[test]
+        fn should_inc_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(1);
+            cpu.bus.write8(0, 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.bc(), 2);
+        }
+
+        #[test]
+        fn should_inc_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(1);
+            cpu.bus.write8(0, 2 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.de(), 2);
+        }
+
+        #[test]
+        fn should_inc_hl_direct() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(1);
+            cpu.bus.write8(0, 4 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.hl(), 2);
+        }
+
+        #[test]
+        fn should_inc_sp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 1;
+            cpu.bus.write8(0, 6 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.sp, 2);
+        }
+
+        #[test]
+        fn should_dec_bc() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_bc(1);
+            cpu.bus.write8(0, 1 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.bc(), 0);
+        }
+
+        #[test]
+        fn should_dec_de() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_de(1);
+            cpu.bus.write8(0, 3 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.de(), 0);
+        }
+
+        #[test]
+        fn should_dec_hl_direct() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.set_hl(1);
+            cpu.bus.write8(0, 5 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.hl(), 0);
+        }
+
+        #[test]
+        fn should_dec_sp() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.registers.sp = 1;
+            cpu.bus.write8(0, 7 << 3 | 3);
+
+            // ADD HL SP
+            cpu.step();
+            assert_eq!(cpu.registers.pc, 1);
+            assert_eq!(cpu.registers.sp, 0);
         }
 
         #[test]
