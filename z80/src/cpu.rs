@@ -1505,45 +1505,360 @@ where
                         let closing_opcode = self.read_and_advance();
 
                         match decode::into_group_and_operands(closing_opcode) {
+                            (0, 0, 0) => {
+                                // RLC (IX + d) [copy to b]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 0, 1) => {
+                                // RLC (IX + d) [copy to c]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 0, 2) => {
+                                // RLC (IX + d) [copy to d]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 0, 3) => {
+                                // RLC (IX + d) [copy to e]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 0, 4) => {
+                                // RLC (IX + d) [copy to h]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 0, 5) => {
+                                // RLC (IX + d) [copy to l]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 0, 6) => {
                                 // RLC (IX + d)
                                 self.rlc_and_store(value, address);
+                            }
+                            (0, 0, 7) => {
+                                // RLC (IX + d) [copy to a]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 1, 0) => {
+                                // RRC (IX + d) [copy to b]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 1, 1) => {
+                                // RRC (IX + d) [copy to c]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 1, 2) => {
+                                // RRC (IX + d) [copy to d]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 1, 3) => {
+                                // RRC (IX + d) [copy to e]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 1, 4) => {
+                                // RRC (IX + d) [copy to h]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 1, 5) => {
+                                // RRC (IX + d) [copy to l]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 1, 6) => {
                                 // RRC (IX + d)
                                 self.rrc_and_store(value, address);
                             }
+                            (0, 1, 7) => {
+                                // RRC (IX + d) [copy to a]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 2, 0) => {
+                                // RL (IX + d) [copy to b]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 2, 1) => {
+                                // RL (IX + d) [copy to c]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 2, 2) => {
+                                // RL (IX + d) [copy to d]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 2, 3) => {
+                                // RL (IX + d) [copy to e]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 2, 4) => {
+                                // RL (IX + d) [copy to h]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 2, 5) => {
+                                // RL (IX + d) [copy to l]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 2, 6) => {
-                                // RL (IX +d)
+                                // RL (IX + d)
                                 self.rl_and_store(value, address);
+                            }
+                            (0, 2, 7) => {
+                                // RL (IX + d) [copy to a]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 3, 0) => {
+                                // RR (IX + d) [copy to b]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 3, 1) => {
+                                // RR (IX + d) [copy to c]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 3, 2) => {
+                                // RR (IX + d) [copy to d]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 3, 3) => {
+                                // RR (IX + d) [copy to e]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 3, 4) => {
+                                // RR (IX + d) [copy to h]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 3, 5) => {
+                                // RR (IX + d) [copy to l]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 3, 6) => {
                                 // RR (IX + d)
                                 self.rr_and_store(value, address);
                             }
+                            (0, 3, 7) => {
+                                // RR (IX + d) [copy to a]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 4, 0) => {
+                                // SLA (IX + d) [copy to b]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 4, 1) => {
+                                // SLA (IX + d) [copy to c]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 4, 2) => {
+                                // SLA (IX + d) [copy to d]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 4, 3) => {
+                                // SLA (IX + d) [copy to e]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 4, 4) => {
+                                // SLA (IX + d) [copy to h]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 4, 5) => {
+                                // SLA (IX + d) [copy to l]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 4, 6) => {
                                 // SLA (IX + d)
                                 self.sla_and_store(value, address);
+                            }
+                            (0, 4, 7) => {
+                                // SLA (IX + d) [copy to a]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 5, 0) => {
+                                // SRA (IX + d) [copy to b]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 5, 1) => {
+                                // SRA (IX + d) [copy to c]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 5, 2) => {
+                                // SRA (IX + d) [copy to d]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 5, 3) => {
+                                // SRA (IX + d) [copy to e]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 5, 4) => {
+                                // SRA (IX + d) [copy to h]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 5, 5) => {
+                                // SRA (IX + d) [copy to l]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 5, 6) => {
                                 // SRA (IX + d)
                                 self.sra_and_store(value, address);
                             }
+                            (0, 5, 7) => {
+                                // SRA (IX + d) [copy to a]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 7, 0) => {
+                                // SRL (IX + d) [copy to b]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 7, 1) => {
+                                // SRL (IX + d) [copy to c]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 7, 2) => {
+                                // SRL (IX + d) [copy to d]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 7, 3) => {
+                                // SRL (IX + d) [copy to e]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 7, 4) => {
+                                // SRL (IX + d) [copy to h]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 7, 5) => {
+                                // SRL (IX + d) [copy to l]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 7, 6) => {
                                 // SRL (IX + d)
                                 self.srl_and_store(value, address);
+                            }
+                            (0, 7, 7) => {
+                                // SRL (IX + d) [copy to a]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.a = value;
                             }
                             (1, index, 6) => {
                                 // BIT b, (IX + d)
                                 self.bit(value, index);
                             }
+                            (2, index, 0) => {
+                                // RES (IX + d) [copy to b]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.b = value;
+                            }
+                            (2, index, 1) => {
+                                // RES (IX + d) [copy to c]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.c = value;
+                            }
+                            (2, index, 2) => {
+                                // RES (IX + d) [copy to d]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.d = value;
+                            }
+                            (2, index, 3) => {
+                                // RES (IX + d) [copy to e]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.e = value;
+                            }
+                            (2, index, 4) => {
+                                // RES (IX + d) [copy to h]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.h = value;
+                            }
+                            (2, index, 5) => {
+                                // RES (IX + d) [copy to l]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.l = value;
+                            }
                             (2, index, 6) => {
-                                // RES b, (IX + d)
+                                // RES (IX + d)
                                 self.res_and_store(value, index, address);
                             }
+                            (2, index, 7) => {
+                                // RES (IX + d) [copy to a]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.a = value;
+                            }
+                            (3, index, 0) => {
+                                // SET (IX + d) [copy to b]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.b = value;
+                            }
+                            (3, index, 1) => {
+                                // SET (IX + d) [copy to c]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.c = value;
+                            }
+                            (3, index, 2) => {
+                                // SET (IX + d) [copy to d]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.d = value;
+                            }
+                            (3, index, 3) => {
+                                // SET (IX + d) [copy to e]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.e = value;
+                            }
+                            (3, index, 4) => {
+                                // SET (IX + d) [copy to h]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.h = value;
+                            }
+                            (3, index, 5) => {
+                                // SET (IX + d) [copy to l]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.l = value;
+                            }
                             (3, index, 6) => {
-                                // SET b, (IX + d)
+                                // SET (IX + d)
                                 self.set_and_store(value, index, address);
+                            }
+                            (3, index, 7) => {
+                                // SET (IX + d) [copy to a]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.a = value;
                             }
                             _ => panic!("Unsupported DD CB d instruction"),
                         }
@@ -1772,45 +2087,360 @@ where
                         let closing_opcode = self.read_and_advance();
 
                         match decode::into_group_and_operands(closing_opcode) {
+                            (0, 0, 0) => {
+                                // RLC (IY + d) [copy to b]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 0, 1) => {
+                                // RLC (IY + d) [copy to c]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 0, 2) => {
+                                // RLC (IY + d) [copy to d]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 0, 3) => {
+                                // RLC (IY + d) [copy to e]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 0, 4) => {
+                                // RLC (IY + d) [copy to h]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 0, 5) => {
+                                // RLC (IY + d) [copy to l]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 0, 6) => {
                                 // RLC (IY + d)
                                 self.rlc_and_store(value, address);
+                            }
+                            (0, 0, 7) => {
+                                // RLC (IY + d) [copy to a]
+                                let value = self.rlc_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 1, 0) => {
+                                // RRC (IY + d) [copy to b]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 1, 1) => {
+                                // RRC (IY + d) [copy to c]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 1, 2) => {
+                                // RRC (IY + d) [copy to d]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 1, 3) => {
+                                // RRC (IY + d) [copy to e]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 1, 4) => {
+                                // RRC (IY + d) [copy to h]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 1, 5) => {
+                                // RRC (IY + d) [copy to l]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 1, 6) => {
                                 // RRC (IY + d)
                                 self.rrc_and_store(value, address);
                             }
+                            (0, 1, 7) => {
+                                // RRC (IY + d) [copy to a]
+                                let value = self.rrc_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 2, 0) => {
+                                // RL (IY + d) [copy to b]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 2, 1) => {
+                                // RL (IY + d) [copy to c]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 2, 2) => {
+                                // RL (IY + d) [copy to d]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 2, 3) => {
+                                // RL (IY + d) [copy to e]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 2, 4) => {
+                                // RL (IY + d) [copy to h]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 2, 5) => {
+                                // RL (IY + d) [copy to l]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 2, 6) => {
                                 // RL (IY + d)
                                 self.rl_and_store(value, address);
+                            }
+                            (0, 2, 7) => {
+                                // RL (IY + d) [copy to a]
+                                let value = self.rl_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 3, 0) => {
+                                // RR (IY + d) [copy to b]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 3, 1) => {
+                                // RR (IY + d) [copy to c]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 3, 2) => {
+                                // RR (IY + d) [copy to d]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 3, 3) => {
+                                // RR (IY + d) [copy to e]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 3, 4) => {
+                                // RR (IY + d) [copy to h]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 3, 5) => {
+                                // RR (IY + d) [copy to l]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 3, 6) => {
                                 // RR (IY + d)
                                 self.rr_and_store(value, address);
                             }
+                            (0, 3, 7) => {
+                                // RR (IY + d) [copy to a]
+                                let value = self.rr_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 4, 0) => {
+                                // SLA (IY + d) [copy to b]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 4, 1) => {
+                                // SLA (IY + d) [copy to c]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 4, 2) => {
+                                // SLA (IY + d) [copy to d]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 4, 3) => {
+                                // SLA (IY + d) [copy to e]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 4, 4) => {
+                                // SLA (IY + d) [copy to h]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 4, 5) => {
+                                // SLA (IY + d) [copy to l]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 4, 6) => {
                                 // SLA (IY + d)
                                 self.sla_and_store(value, address);
                             }
+                            (0, 4, 7) => {
+                                // SLA (IY + d) [copy to a]
+                                let value = self.sla_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 5, 0) => {
+                                // SLA (IY + d) [copy to b]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 5, 1) => {
+                                // SLA (IY + d) [copy to c]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 5, 2) => {
+                                // SLA (IY + d) [copy to d]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 5, 3) => {
+                                // SLA (IY + d) [copy to e]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 5, 4) => {
+                                // SLA (IY + d) [copy to h]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 5, 5) => {
+                                // SLA (IY + d) [copy to l]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.l = value;
+                            }
                             (0, 5, 6) => {
-                                // SRA (IY + d)
+                                // SLA (IY + d)
                                 self.sra_and_store(value, address);
+                            }
+                            (0, 5, 7) => {
+                                // SLA (IY + d) [copy to a]
+                                let value = self.sra_and_store(value, address);
+                                self.registers.a = value;
+                            }
+                            (0, 7, 0) => {
+                                // SRL (IY + d) [copy to b]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.b = value;
+                            }
+                            (0, 7, 1) => {
+                                // SRL (IY + d) [copy to c]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.c = value;
+                            }
+                            (0, 7, 2) => {
+                                // SRL (IY + d) [copy to d]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.d = value;
+                            }
+                            (0, 7, 3) => {
+                                // SRL (IY + d) [copy to e]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.e = value;
+                            }
+                            (0, 7, 4) => {
+                                // SRL (IY + d) [copy to h]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.h = value;
+                            }
+                            (0, 7, 5) => {
+                                // SRL (IY + d) [copy to l]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.l = value;
                             }
                             (0, 7, 6) => {
                                 // SRL (IY + d)
                                 self.srl_and_store(value, address);
                             }
+                            (0, 7, 7) => {
+                                // SRL (IY + d) [copy to a]
+                                let value = self.srl_and_store(value, address);
+                                self.registers.a = value;
+                            }
                             (1, index, 6) => {
                                 // BIT b, (IY + d)
                                 self.bit(value, index);
                             }
+                            (2, index, 0) => {
+                                // RES (IY + d) [copy to b]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.b = value;
+                            }
+                            (2, index, 1) => {
+                                // RES (IY + d) [copy to c]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.c = value;
+                            }
+                            (2, index, 2) => {
+                                // RES (IY + d) [copy to d]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.d = value;
+                            }
+                            (2, index, 3) => {
+                                // RES (IY + d) [copy to e]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.e = value;
+                            }
+                            (2, index, 4) => {
+                                // RES (IY + d) [copy to h]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.h = value;
+                            }
+                            (2, index, 5) => {
+                                // RES (IY + d) [copy to l]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.l = value;
+                            }
                             (2, index, 6) => {
-                                // RES b, (IY + d)
+                                // RES (IY + d)
                                 self.res_and_store(value, index, address);
                             }
+                            (2, index, 7) => {
+                                // RES (IY + d) [copy to a]
+                                let value = self.res_and_store(value, index, address);
+                                self.registers.a = value;
+                            }
+                            (3, index, 0) => {
+                                // SET (IY + d) [copy to b]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.b = value;
+                            }
+                            (3, index, 1) => {
+                                // SET (IY + d) [copy to c]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.c = value;
+                            }
+                            (3, index, 2) => {
+                                // SET (IY + d) [copy to d]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.d = value;
+                            }
+                            (3, index, 3) => {
+                                // SET (IY + d) [copy to e]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.e = value;
+                            }
+                            (3, index, 4) => {
+                                // SET (IY + d) [copy to h]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.h = value;
+                            }
+                            (3, index, 5) => {
+                                // SET (IY + d) [copy to l]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.l = value;
+                            }
                             (3, index, 6) => {
-                                // SET b, (IY + d)
+                                // SET (IY + d)
                                 self.set_and_store(value, index, address);
+                            }
+                            (3, index, 7) => {
+                                // SET (IY + d) [copy to a]
+                                let value = self.set_and_store(value, index, address);
+                                self.registers.a = value;
                             }
                             _ => panic!("Unsupported FD CB d instruction"),
                         }
@@ -9411,6 +10041,132 @@ mod tests {
             }
 
             #[test]
+            fn should_rlc_ix_copy_to_b() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x00);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.b, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_c() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x01);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.c, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_d() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x02);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.d, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_e() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x03);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.e, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_h() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x04);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.h, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_l() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x05);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.l, 0xF1);
+            }
+
+            #[test]
+            fn should_rlc_ix_copy_to_a() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x07);
+                cpu.bus.write8(0x1233, 0xF8);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+                assert_eq!(cpu.registers.a, 0xF1);
+            }
+
+            #[test]
             fn should_rrc_ix_d() {
                 let mut cpu = Cpu::new(Registers::new(), TestBus::new());
                 cpu.bus.write8(0x00, 0xDD);
@@ -9456,6 +10212,132 @@ mod tests {
                 assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
                 assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
                 assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_b() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x08);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.b, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_c() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x09);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.c, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_d() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x0A);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.d, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_e() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x0B);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.e, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_h() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x0C);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.h, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_l() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x0D);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.l, 0xB8);
+            }
+
+            #[test]
+            fn should_rrc_ix_d_copy_to_a() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x0F);
+                cpu.bus.write8(0x1233, 0x71);
+                cpu.registers.ix = 0x1234;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+                assert_eq!(cpu.registers.a, 0xB8);
             }
 
             #[test]
@@ -9512,6 +10394,160 @@ mod tests {
                 assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
                 assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
                 assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_b() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x10);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.b, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_c() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x11);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.c, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_d() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x12);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.d, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_e() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x13);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.e, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_h() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x14);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.h, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_l() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x15);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.l, 0xE3);
+            }
+
+            #[test]
+            fn should_rl_ix_d_copy_to_a() {
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xCB);
+                cpu.bus.write8(0x02, 0xFF);
+                cpu.bus.write8(0x03, 0x17);
+                cpu.bus.write8(0x1233, 0xF1);
+                cpu.registers.ix = 0x1234;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true,
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x4);
+                assert_eq!(cpu.registers.ix, 0x1234);
+                assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+                assert_eq!(cpu.registers.a, 0xE3);
             }
 
             #[test]
@@ -9572,6 +10608,160 @@ mod tests {
         }
 
         #[test]
+        fn should_rr_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x18);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.b, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x19);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.c, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1A);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.d, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1B);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.e, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1C);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.h, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1D);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.l, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1F);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.a, 0xF8);
+        }
+
+        #[test]
         fn should_sla_ix_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xDD);
@@ -9625,6 +10815,160 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x20);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.b, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x21);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.c, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x22);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.d, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x23);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.e, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x24);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.h, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x25);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.l, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x27);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.a, 0xE2);
         }
 
         #[test]
@@ -9684,6 +11028,160 @@ mod tests {
         }
 
         #[test]
+        fn should_sra_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x28);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.b, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x29);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.c, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2A);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.d, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2B);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.e, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2C);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.h, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2D);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.l, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2F);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.a, 0xC0);
+        }
+
+        #[test]
         fn should_srl_ix_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xDD);
@@ -9737,6 +11235,160 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x38);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.b, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x39);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.c, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3A);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.d, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3B);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.e, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3C);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.h, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3D);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.l, 0x40);
+        }
+
+        #[test]
+        fn should_srl_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3F);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.ix = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.a, 0x40);
         }
 
         #[test]
@@ -9803,6 +11455,132 @@ mod tests {
         }
 
         #[test]
+        fn should_res_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x90);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.b, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x91);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.c, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x92);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.d, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x93);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.e, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x94);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.h, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x95);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.l, 0xFB);
+        }
+
+        #[test]
+        fn should_res_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x97);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.a, 0xFB);
+        }
+
+        #[test]
         fn should_set_ix_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xDD);
@@ -9817,6 +11595,132 @@ mod tests {
             assert_eq!(cpu.registers.pc, 0x4);
             assert_eq!(cpu.registers.ix, 0x1234);
             assert_eq!(cpu.bus.read8(0x1233), 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD0);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.b, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD1);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.c, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD2);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.d, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD3);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.e, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD4);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.h, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD5);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.l, 0x04);
+        }
+
+        #[test]
+        fn should_set_ix_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD7);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.a, 0x04);
         }
     }
 
@@ -10811,6 +12715,156 @@ mod tests {
         }
 
         #[test]
+        fn should_rlc_ix_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x00);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.b, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x01);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.c, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x02);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.d, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x03);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.e, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x04);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.h, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x05);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.l, 0xF1);
+        }
+
+        #[test]
+        fn should_rlc_ix_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x07);
+            cpu.bus.write8(0x1233, 0xF8);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF1);
+            assert_eq!(cpu.registers.a, 0xF1);
+        }
+
+        #[test]
+        fn should_rrc_ix_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xDD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0E);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.ix = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.ix, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+
+            assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::SIGN));
+            assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+            assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+            assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+            assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
         fn should_rrc_iy_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xFD);
@@ -10856,6 +12910,132 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x08);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.b, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x09);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.c, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0A);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.d, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0B);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.e, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0C);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.h, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0D);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.l, 0xB8);
+        }
+
+        #[test]
+        fn should_rrc_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x0F);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xB8);
+            assert_eq!(cpu.registers.a, 0xB8);
         }
 
         #[test]
@@ -10915,6 +13095,160 @@ mod tests {
         }
 
         #[test]
+        fn should_rl_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x10);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.b, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x11);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.c, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x12);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.d, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x13);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.e, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x14);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.h, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x15);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.l, 0xE3);
+        }
+
+        #[test]
+        fn should_rl_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x17);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE3);
+            assert_eq!(cpu.registers.a, 0xE3);
+        }
+
+        #[test]
         fn should_rr_iy_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xFD);
@@ -10968,6 +13302,160 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x18);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.b, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x19);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.c, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1A);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.d, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1B);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.e, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1C);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.h, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1D);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.l, 0xF8);
+        }
+
+        #[test]
+        fn should_rr_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x1F);
+            cpu.bus.write8(0x1233, 0xF1);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xF8);
+            assert_eq!(cpu.registers.a, 0xF8);
         }
 
         #[test]
@@ -11027,6 +13515,160 @@ mod tests {
         }
 
         #[test]
+        fn should_sla_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x20);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.b, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x21);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.c, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x22);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.d, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x23);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.e, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x24);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.h, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x25);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.l, 0xE2);
+        }
+
+        #[test]
+        fn should_sla_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x27);
+            cpu.bus.write8(0x1233, 0x71);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => true,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xE2);
+            assert_eq!(cpu.registers.a, 0xE2);
+        }
+
+        #[test]
         fn should_sra_iy_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xFD);
@@ -11080,6 +13722,160 @@ mod tests {
             assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
             assert!(bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
             assert!(!bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x28);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.b, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x29);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.c, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2A);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.d, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2B);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.e, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2C);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.h, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2D);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.l, 0xC0);
+        }
+
+        #[test]
+        fn should_sra_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x2F);
+            cpu.bus.write8(0x1233, 0x81);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xC0);
+            assert_eq!(cpu.registers.a, 0xC0);
         }
 
         #[test]
@@ -11162,6 +13958,160 @@ mod tests {
         }
 
         #[test]
+        fn should_srl_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x38);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.b, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x39);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.c, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3A);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.d, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3B);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.e, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3C);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.h, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3D);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.l, 0x40);
+        }
+
+        #[test]
+        fn should_srl_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x3F);
+            cpu.bus.write8(0x1233, 0x80);
+            cpu.registers.iy = 0x1234;
+            cpu.registers.f = set_bits!(
+                cpu.registers.f,
+                flags::CARRY => false,
+            );
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x40);
+            assert_eq!(cpu.registers.a, 0x40);
+        }
+
+        #[test]
         fn should_bit_iy_d_set() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xFD);
@@ -11202,6 +14152,132 @@ mod tests {
         }
 
         #[test]
+        fn should_res_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x90);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.b, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x91);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.c, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x92);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.d, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x93);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.e, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x94);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.h, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x95);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.l, 0xFB);
+        }
+
+        #[test]
+        fn should_res_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0x97);
+            cpu.bus.write8(0x1233, 0xFF);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0xFB);
+            assert_eq!(cpu.registers.a, 0xFB);
+        }
+
+        #[test]
         fn should_set_iy_d() {
             let mut cpu = Cpu::new(Registers::new(), TestBus::new());
             cpu.bus.write8(0x00, 0xFD);
@@ -11216,6 +14292,132 @@ mod tests {
             assert_eq!(cpu.registers.pc, 0x4);
             assert_eq!(cpu.registers.iy, 0x1234);
             assert_eq!(cpu.bus.read8(0x1233), 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_b() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD0);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.b, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_c() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD1);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.c, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_d() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD2);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.d, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_e() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD3);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.e, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_h() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD4);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.h, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_l() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD5);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.l, 0x04);
+        }
+
+        #[test]
+        fn should_set_iy_d_copy_to_a() {
+            let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+            cpu.bus.write8(0x00, 0xFD);
+            cpu.bus.write8(0x01, 0xCB);
+            cpu.bus.write8(0x02, 0xFF);
+            cpu.bus.write8(0x03, 0xD7);
+            cpu.bus.write8(0x1233, 0x00);
+            cpu.registers.iy = 0x1234;
+
+            cpu.step();
+
+            assert_eq!(cpu.registers.pc, 0x4);
+            assert_eq!(cpu.registers.iy, 0x1234);
+            assert_eq!(cpu.bus.read8(0x1233), 0x04);
+            assert_eq!(cpu.registers.a, 0x04);
         }
     }
 }
