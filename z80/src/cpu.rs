@@ -1501,151 +1501,49 @@ where
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
-                        let mut value = self.bus.read8(address);
+                        let value = self.bus.read8(address);
                         let closing_opcode = self.read_and_advance();
 
                         match decode::into_group_and_operands(closing_opcode) {
                             (0, 0, 6) => {
                                 // RLC (IX + d)
-                                let carry = bit_is_set(value, 7);
-                                value = value.rotate_left(1);
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rlc_and_store(value, address);
                             }
                             (0, 1, 6) => {
                                 // RRC (IX + d)
-                                let carry = bit_is_set(value, 0);
-                                value = value.rotate_right(1);
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rrc_and_store(value, address);
                             }
                             (0, 2, 6) => {
                                 // RL (IX +d)
-                                let new_lsb = match bit_is_set(self.registers.f, flags::CARRY) {
-                                    true => 1,
-                                    false => 0,
-                                };
-                                let carry = bit_is_set(value, 7);
-                                value = (value << 1) | new_lsb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rl_and_store(value, address);
                             }
                             (0, 3, 6) => {
                                 // RR (IX + d)
-                                let new_msb = match bit_is_set(self.registers.f, flags::CARRY) {
-                                    true => 0x80,
-                                    false => 0x00,
-                                };
-                                let carry = bit_is_set(value, 0);
-                                value = (value >> 1) | new_msb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rr_and_store(value, address);
                             }
                             (0, 4, 6) => {
                                 // SLA (IX + d)
-                                let sign = bit_is_set(value, 7);
-                                value <<= 1;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => sign,
-                                );
+                                self.sla_and_store(value, address);
                             }
                             (0, 5, 6) => {
                                 // SRA (IX + d)
-                                let msb = 0x80 & value;
-                                let carry = bit_is_set(value, 0);
-                                value = (value >> 1) | msb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.sra_and_store(value, address);
                             }
                             (0, 7, 6) => {
                                 // SRL (IX + d)
-                                let carry = bit_is_set(value, 0);
-                                value >>= 1;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => false,
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.srl_and_store(value, address);
                             }
                             (1, index, 6) => {
                                 // BIT b, (IX + d)
-                                let is_set = bit_is_set(value, index);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set,
-                                    flags::ZERO => !is_set,
-                                    flags::HALF_CARRY => true,
-                                    flags::PARITY_OVERFLOW => !is_set,
-                                    flags::ADD_SUBTRACT => false,
-                                );
+                                self.bit(value, index);
                             }
                             (2, index, 6) => {
                                 // RES b, (IX + d)
-                                value = set_bits!(
-                                    value,
-                                    index => false
-                                );
-                                self.bus.write8(address, value);
+                                self.res_and_store(value, index, address);
                             }
                             (3, index, 6) => {
                                 // SET b, (IX + d)
-                                value = set_bits!(
-                                    value,
-                                    index => true
-                                );
-                                self.bus.write8(address, value);
+                                self.set_and_store(value, index, address);
                             }
                             _ => panic!("Unsupported DD CB d instruction"),
                         }
@@ -1870,151 +1768,49 @@ where
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
-                        let mut value = self.bus.read8(address);
+                        let value = self.bus.read8(address);
                         let closing_opcode = self.read_and_advance();
 
                         match decode::into_group_and_operands(closing_opcode) {
                             (0, 0, 6) => {
                                 // RLC (IY + d)
-                                let carry = bit_is_set(value, 7);
-                                value = value.rotate_left(1);
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rlc_and_store(value, address);
                             }
                             (0, 1, 6) => {
                                 // RRC (IY + d)
-                                let carry = bit_is_set(value, 0);
-                                value = value.rotate_right(1);
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rrc_and_store(value, address);
                             }
                             (0, 2, 6) => {
                                 // RL (IY + d)
-                                let new_lsb = match bit_is_set(self.registers.f, flags::CARRY) {
-                                    true => 1,
-                                    false => 0,
-                                };
-                                let carry = bit_is_set(value, 7);
-                                value = (value << 1) | new_lsb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rl_and_store(value, address);
                             }
                             (0, 3, 6) => {
                                 // RR (IY + d)
-                                let new_msb = match bit_is_set(self.registers.f, flags::CARRY) {
-                                    true => 0x80,
-                                    false => 0x00,
-                                };
-                                let carry = bit_is_set(value, 0);
-                                value = (value >> 1) | new_msb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.rr_and_store(value, address);
                             }
                             (0, 4, 6) => {
                                 // SLA (IY + d)
-                                let carry = bit_is_set(value, 7);
-                                value <<= 1;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.sla_and_store(value, address);
                             }
                             (0, 5, 6) => {
                                 // SRA (IY + d)
-                                let msb = 0x80 & value;
-                                let carry = bit_is_set(value, 0);
-                                value = (value >> 1) | msb;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set(value, 0x80),
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.sra_and_store(value, address);
                             }
                             (0, 7, 6) => {
                                 // SRL (IY + d)
-                                let carry = bit_is_set(value, 0);
-                                value >>= 1;
-                                self.bus.write8(address, value);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => false,
-                                    flags::ZERO => value == 0,
-                                    flags::HALF_CARRY => false,
-                                    flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
-                                    flags::ADD_SUBTRACT => false,
-                                    flags::CARRY => carry,
-                                );
+                                self.srl_and_store(value, address);
                             }
                             (1, index, 6) => {
                                 // BIT b, (IY + d)
-                                let is_set = bit_is_set(value, index);
-                                self.registers.f = set_bits!(
-                                    self.registers.f,
-                                    flags::SIGN => is_set,
-                                    flags::ZERO => !is_set,
-                                    flags::HALF_CARRY => true,
-                                    flags::PARITY_OVERFLOW => !is_set,
-                                    flags::ADD_SUBTRACT => false,
-                                );
+                                self.bit(value, index);
                             }
                             (2, index, 6) => {
                                 // RES b, (IY + d)
-                                value = set_bits!(
-                                    value,
-                                    index => false
-                                );
-                                self.bus.write8(address, value);
+                                self.res_and_store(value, index, address);
                             }
                             (3, index, 6) => {
                                 // SET b, (IY + d)
-                                value = set_bits!(
-                                    value,
-                                    index => true
-                                );
-                                self.bus.write8(address, value);
+                                self.set_and_store(value, index, address);
                             }
                             _ => panic!("Unsupported FD CB d instruction"),
                         }
@@ -2374,6 +2170,177 @@ where
 
         let had_carry = bit_is_set(self.registers.f, flags::CARRY);
         had_carry || self.registers.a > 0x99
+    }
+
+    #[inline]
+    fn rlc_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let carry = bit_is_set(value, 7);
+        let value = value.rotate_left(1);
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn rrc_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let carry = bit_is_set(value, 0);
+        let value = value.rotate_right(1);
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+    #[inline]
+    fn rl_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let new_lsb = match bit_is_set(self.registers.f, flags::CARRY) {
+            true => 1,
+            false => 0,
+        };
+        let carry = bit_is_set(value, 7);
+        let value = (value << 1) | new_lsb;
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn rr_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let new_msb = match bit_is_set(self.registers.f, flags::CARRY) {
+            true => 0x80,
+            false => 0x00,
+        };
+        let carry = bit_is_set(value, 0);
+        let value = (value >> 1) | new_msb;
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn sla_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let carry = bit_is_set(value, 7);
+        let value = value << 1;
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn sra_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let msb = 0x80 & value;
+        let carry = bit_is_set(value, 0);
+        let value = (value >> 1) | msb;
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set(value, 0x80),
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn srl_and_store(&mut self, value: u8, address: u16) -> u8 {
+        let carry = bit_is_set(value, 0);
+        let value = value >> 1;
+        self.bus.write8(address, value);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => false,
+            flags::ZERO => value == 0,
+            flags::HALF_CARRY => false,
+            flags::PARITY_OVERFLOW => value.count_zeros().is_multiple_of(2),
+            flags::ADD_SUBTRACT => false,
+            flags::CARRY => carry,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn bit(&mut self, value: u8, index: u8) -> u8 {
+        let is_set = bit_is_set(value, index);
+        self.registers.f = set_bits!(
+            self.registers.f,
+            flags::SIGN => is_set,
+            flags::ZERO => !is_set,
+            flags::HALF_CARRY => true,
+            flags::PARITY_OVERFLOW => !is_set,
+            flags::ADD_SUBTRACT => false,
+        );
+
+        value
+    }
+
+    #[inline]
+    fn res_and_store(&mut self, value: u8, index: u8, address: u16) -> u8 {
+        let value = set_bits!(
+            value,
+            index => false
+        );
+        self.bus.write8(address, value);
+
+        value
+    }
+
+    #[inline]
+    fn set_and_store(&mut self, value: u8, index: u8, address: u16) -> u8 {
+        let value = set_bits!(
+            value,
+            index => true
+        );
+        self.bus.write8(address, value);
+
+        value
     }
 }
 
