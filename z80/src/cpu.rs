@@ -293,7 +293,7 @@ where
                     // LD (nn), A
                     self.bus.write8(address, self.registers.a);
                 } else {
-                    //  LD A, (nn)
+                    // LD A, (nn)
                     self.registers.a = self.bus.read8(address);
                 }
             }
@@ -1701,41 +1701,41 @@ where
                                 self.registers.a = value;
                             }
                             (0, 5, 0) => {
-                                // SRA (IX + d) [copy to b]
+                                // SLA (IX + d) [copy to b]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.b = value;
                             }
                             (0, 5, 1) => {
-                                // SRA (IX + d) [copy to c]
+                                // SLA (IX + d) [copy to c]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.c = value;
                             }
                             (0, 5, 2) => {
-                                // SRA (IX + d) [copy to d]
+                                // SLA (IX + d) [copy to d]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.d = value;
                             }
                             (0, 5, 3) => {
-                                // SRA (IX + d) [copy to e]
+                                // SLA (IX + d) [copy to e]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.e = value;
                             }
                             (0, 5, 4) => {
-                                // SRA (IX + d) [copy to h]
+                                // SLA (IX + d) [copy to h]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.h = value;
                             }
                             (0, 5, 5) => {
-                                // SRA (IX + d) [copy to l]
+                                // SLA (IX + d) [copy to l]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.l = value;
                             }
                             (0, 5, 6) => {
-                                // SRA (IX + d)
+                                // SLA (IX + d)
                                 self.sra_and_store(value, address);
                             }
                             (0, 5, 7) => {
-                                // SRA (IX + d) [copy to a]
+                                // SLA (IX + d) [copy to a]
                                 let value = self.sra_and_store(value, address);
                                 self.registers.a = value;
                             }
