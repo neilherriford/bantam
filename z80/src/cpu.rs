@@ -103,6 +103,32 @@ where
     }
 
     #[inline]
+    fn add_u8_by_ix_index_and_set_flags_for(
+        &mut self,
+        augend_index: u8,
+        addend_index: u8,
+        use_carry: bool,
+    ) -> u8 {
+        let augend = self.read_ix_indexed_register(augend_index);
+        let addend = self.read_ix_indexed_register(addend_index);
+
+        self.add_u8_and_set_flags(augend, addend, use_carry)
+    }
+
+    #[inline]
+    fn add_u8_by_iy_index_and_set_flags_for(
+        &mut self,
+        augend_index: u8,
+        addend_index: u8,
+        use_carry: bool,
+    ) -> u8 {
+        let augend = self.read_iy_indexed_register(augend_index);
+        let addend = self.read_iy_indexed_register(addend_index);
+
+        self.add_u8_and_set_flags(augend, addend, use_carry)
+    }
+
+    #[inline]
     fn add_u16_and_set_flags(&mut self, augend: u16, addend: u16, use_carry: bool) -> u16 {
         let carry_in: u8 = if use_carry && bit_is_set(self.registers.f, flags::CARRY) {
             1
@@ -196,6 +222,32 @@ where
     ) -> u8 {
         let minuend = self.read_indexed_register(minuend_index);
         let subtrahend = self.read_indexed_register(subtrahend_index);
+
+        self.subtract_u8_and_set_flags(minuend, subtrahend, use_carry)
+    }
+
+    #[inline]
+    fn subtract_u8_by_ix_index_and_set_flags(
+        &mut self,
+        minuend_index: u8,
+        subtrahend_index: u8,
+        use_carry: bool,
+    ) -> u8 {
+        let minuend = self.read_ix_indexed_register(minuend_index);
+        let subtrahend = self.read_ix_indexed_register(subtrahend_index);
+
+        self.subtract_u8_and_set_flags(minuend, subtrahend, use_carry)
+    }
+
+    #[inline]
+    fn subtract_u8_by_iy_index_and_set_flags(
+        &mut self,
+        minuend_index: u8,
+        subtrahend_index: u8,
+        use_carry: bool,
+    ) -> u8 {
+        let minuend = self.read_iy_indexed_register(minuend_index);
+        let subtrahend = self.read_iy_indexed_register(subtrahend_index);
 
         self.subtract_u8_and_set_flags(minuend, subtrahend, use_carry)
     }
@@ -381,13 +433,13 @@ where
                 self.set_zero_and_sign_flags_for_u8(after);
             }
             (2, 0, register) => {
-                // ADD A. r
+                // ADD A, r
                 self.advance();
                 let sum = self.add_u8_by_index_and_set_flags(registers::index::A, register, false);
                 self.registers.a = sum;
             }
             (2, 1, register) => {
-                // ADC A. r
+                // ADC A, r
                 self.advance();
                 let sum = self.add_u8_by_index_and_set_flags(registers::index::A, register, true);
                 self.registers.a = sum;
@@ -1863,6 +1915,107 @@ where
                             _ => panic!("Unsupported DD CB d instruction"),
                         }
                     }
+                    // Undocumented
+                    (1, dest, src) if dest != 6 && src != 6 => {
+                        // LD r, r' [IXh/IXl]
+                        let value = self.read_ix_indexed_register(src);
+                        self.write_ix_indexed_register(dest, value);
+                    }
+                    (0, register, 4) => {
+                        // INC r
+                        let before = self.read_ix_indexed_register(register);
+                        let after = before.wrapping_add(1);
+                        self.write_ix_indexed_register(register, after);
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::ADD_SUBTRACT => false,
+                            flags::PARITY_OVERFLOW => before == 0x7F,
+                            flags::HALF_CARRY => is_set(before, 0x0F),
+                            flags::ZERO => after == 0,
+                            flags::SIGN => is_set(after, 0x80),
+                        );
+                    }
+                    (0, register, 5) => {
+                        // DEC r
+                        let before = self.read_ix_indexed_register(register);
+                        let after = before.wrapping_sub(1);
+                        self.write_ix_indexed_register(register, after);
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::ADD_SUBTRACT => true,
+                            flags::PARITY_OVERFLOW => before == 0x80,
+                            flags::HALF_CARRY => before & 0x0F == 0x00,
+                        );
+
+                        self.set_zero_and_sign_flags_for_u8(after);
+                    }
+                    (2, 0, register) => {
+                        // ADD A, r
+                        let sum = self.add_u8_by_ix_index_and_set_flags_for(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                        self.registers.a = sum;
+                    }
+                    (2, 1, register) => {
+                        // ADC A, r
+                        let sum = self.add_u8_by_ix_index_and_set_flags_for(
+                            registers::index::A,
+                            register,
+                            true,
+                        );
+                        self.registers.a = sum;
+                    }
+                    (2, 2, register) => {
+                        // SUB A, r
+                        let difference = self.subtract_u8_by_ix_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                        self.registers.a = difference;
+                    }
+                    (2, 3, register) => {
+                        // SBC A, r
+                        let difference = self.subtract_u8_by_ix_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            true,
+                        );
+                        self.registers.a = difference;
+                    }
+                    (2, 7, register) => {
+                        // CP r
+                        self.subtract_u8_by_ix_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                    }
+                    (2, 4, register) => {
+                        // AND r
+                        let value = self.read_ix_indexed_register(register);
+                        self.registers.a &= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => true);
+                    }
+                    (2, 6, register) => {
+                        // OR r
+                        let value = self.read_ix_indexed_register(register);
+                        self.registers.a |= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
+                    (2, 5, register) => {
+                        // XOR r
+                        let value = self.read_ix_indexed_register(register);
+                        self.registers.a ^= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
                     _ => panic!("Unsupported DD instruction"),
                 }
             }
@@ -2445,6 +2598,107 @@ where
                             _ => panic!("Unsupported FD CB d instruction"),
                         }
                     }
+                    // Undocumented
+                    (1, dest, src) if dest != 6 && src != 6 => {
+                        // LD r, r' [IYh/IYl]
+                        let value = self.read_iy_indexed_register(src);
+                        self.write_iy_indexed_register(dest, value);
+                    }
+                    (0, register, 4) => {
+                        // INC r [IYh/IYl]
+                        let before = self.read_iy_indexed_register(register);
+                        let after = before.wrapping_add(1);
+                        self.write_iy_indexed_register(register, after);
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::ADD_SUBTRACT => false,
+                            flags::PARITY_OVERFLOW => before == 0x7F,
+                            flags::HALF_CARRY => is_set(before, 0x0F),
+                            flags::ZERO => after == 0,
+                            flags::SIGN => is_set(after, 0x80),
+                        );
+                    }
+                    (0, register, 5) => {
+                        // DEC r [IYh/IYl]
+                        let before = self.read_iy_indexed_register(register);
+                        let after = before.wrapping_sub(1);
+                        self.write_iy_indexed_register(register, after);
+
+                        self.registers.f = set_bits!(
+                            self.registers.f,
+                            flags::ADD_SUBTRACT => true,
+                            flags::PARITY_OVERFLOW => before == 0x80,
+                            flags::HALF_CARRY => before & 0x0F == 0x00,
+                        );
+
+                        self.set_zero_and_sign_flags_for_u8(after);
+                    }
+                    (2, 0, register) => {
+                        // ADD A, r [IYh/IYl]
+                        let sum = self.add_u8_by_iy_index_and_set_flags_for(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                        self.registers.a = sum;
+                    }
+                    (2, 1, register) => {
+                        // ADC A, r [IYh/IYl]
+                        let sum = self.add_u8_by_iy_index_and_set_flags_for(
+                            registers::index::A,
+                            register,
+                            true,
+                        );
+                        self.registers.a = sum;
+                    }
+                    (2, 2, register) => {
+                        // SUB A, r [IYh/IYl]
+                        let difference = self.subtract_u8_by_iy_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                        self.registers.a = difference;
+                    }
+                    (2, 3, register) => {
+                        // SBC A, r [IYh/IYl]
+                        let difference = self.subtract_u8_by_iy_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            true,
+                        );
+                        self.registers.a = difference;
+                    }
+                    (2, 7, register) => {
+                        // CP r [IYh/IYl]
+                        self.subtract_u8_by_iy_index_and_set_flags(
+                            registers::index::A,
+                            register,
+                            false,
+                        );
+                    }
+                    (2, 4, register) => {
+                        // AND r [IYh/IYl]
+                        let value = self.read_iy_indexed_register(register);
+                        self.registers.a &= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => true);
+                    }
+                    (2, 6, register) => {
+                        // OR r [IYh/IYl]
+                        let value = self.read_iy_indexed_register(register);
+                        self.registers.a |= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
+                    (2, 5, register) => {
+                        // XOR r [IYh/IYl]
+                        let value = self.read_iy_indexed_register(register);
+                        self.registers.a ^= value;
+                        self.set_boolean_operator_flags(self.registers.a);
+                        self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
                     _ => panic!("Unsupported FD instruction"),
                 }
             }
@@ -2971,6 +3225,40 @@ where
         self.bus.write8(address, value);
 
         value
+    }
+
+    #[inline]
+    fn read_ix_indexed_register(&mut self, index: u8) -> u8 {
+        match index {
+            4 => (self.registers.ix >> 8) as u8,
+            5 => (self.registers.ix & 0xFF) as u8,
+            _ => self.read_indexed_register(index),
+        }
+    }
+
+    #[inline]
+    fn write_ix_indexed_register(&mut self, index: u8, value: u8) {
+        match index {
+            4 => self.registers.ix = (self.registers.ix & 0x00FF) | ((value as u16) << 8),
+            5 => self.registers.ix = (self.registers.ix & 0xFF00) | value as u16,
+            _ => self.write_indexed_register(index, value),
+        }
+    }
+
+    fn read_iy_indexed_register(&mut self, index: u8) -> u8 {
+        match index {
+            4 => (self.registers.iy >> 8) as u8,
+            5 => (self.registers.iy & 0xFF) as u8,
+            _ => self.read_indexed_register(index),
+        }
+    }
+
+    fn write_iy_indexed_register(&mut self, index: u8, value: u8) {
+        match index {
+            4 => self.registers.iy = (self.registers.iy & 0x00FF) | ((value as u16) << 8),
+            5 => self.registers.iy = (self.registers.iy & 0xFF00) | value as u16,
+            _ => self.write_indexed_register(index, value),
+        }
     }
 }
 
@@ -9983,6 +10271,420 @@ mod tests {
             assert_eq!(cpu.bus.read16(0x1000), 0x1234);
         }
 
+        mod undocumented {
+            use crate::{
+                bus::{Bus, TestBus},
+                cpu::Cpu,
+                flags::{self, bit_is_set},
+                registers::Registers,
+                set_bits,
+            };
+
+            #[test]
+            fn should_ld_b_ixh() {
+                // LD r, r' [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x44);
+                cpu.registers.b = 0x12;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.b, 0xC0);
+            }
+
+            #[test]
+            fn should_ld_ixh_b() {
+                // LD r, r' [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x60);
+                cpu.registers.b = 0x12;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0x12DE);
+                assert_eq!(cpu.registers.b, 0x12);
+            }
+
+            #[test]
+            fn should_ld_b_ixl() {
+                // LD r, r' [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x45);
+                cpu.registers.b = 0x12;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.b, 0xDE);
+            }
+
+            #[test]
+            fn should_ld_ixl_b() {
+                // LD r, r' [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x68);
+                cpu.registers.b = 0x12;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC012);
+                assert_eq!(cpu.registers.b, 0x12);
+            }
+
+            #[test]
+            fn should_inc_r_ixh() {
+                // INC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x24);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC1DE);
+            }
+
+            #[test]
+            fn should_inc_r_ixl() {
+                // INC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x2C);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DF);
+            }
+
+            #[test]
+            fn should_dec_r_ixh() {
+                // DEC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x25);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xBFDE);
+            }
+
+            #[test]
+            fn should_dec_r_ixl() {
+                // DEC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x2D);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DD);
+            }
+
+            #[test]
+            fn should_add_a_ixh() {
+                // ADD A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x84);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_add_a_h_ixl() {
+                // ADD A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x85);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xE3);
+            }
+
+            #[test]
+            fn should_adc_a_ixh() {
+                // ADC A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x8C);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC6);
+            }
+
+            #[test]
+            fn should_adc_a_ixl() {
+                // ADC A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x8D);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xE4);
+            }
+
+            #[test]
+            fn should_sub_a_r_ixh() {
+                // SUB A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x94);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x45);
+            }
+
+            #[test]
+            fn should_sub_a_ixl() {
+                // SUB A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x95);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x27);
+            }
+
+            #[test]
+            fn should_sbc_a_r_ixh() {
+                // SBC A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x9C);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x44);
+            }
+
+            #[test]
+            fn should_sbc_a_h_ixl() {
+                // SBC A, r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0x9D);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x26);
+            }
+
+            #[test]
+            fn should_cp_ixh() {
+                // CP r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xBC);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x05);
+                assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+                assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            }
+
+            #[test]
+            fn should_cp_ixl() {
+                // CP r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xBD);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x05);
+                assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+                assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            }
+
+            #[test]
+            fn should_and_ixh() {
+                // AND r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xA4);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x00);
+            }
+
+            #[test]
+            fn should_and_ixl() {
+                // AND r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xA5);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x04);
+            }
+
+            #[test]
+            fn should_or_ixh() {
+                // OR r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xB4);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_or_ixl() {
+                // OR r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xB5);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xDF);
+            }
+
+            #[test]
+            fn should_xor_ixh() {
+                // XOR r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xAC);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_xor_ixl() {
+                // XOR r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xAD);
+                cpu.registers.a = 0x05;
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.ix, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xDB);
+            }
+        }
+
         mod cb_modifier {
             use crate::{
                 bus::{Bus, TestBus},
@@ -12654,6 +13356,420 @@ mod tests {
             assert_eq!(cpu.registers.sp, 0x1000);
             assert_eq!(cpu.registers.iy, 0x9876);
             assert_eq!(cpu.bus.read16(0x1000), 0x1234);
+        }
+
+        mod undocumented {
+            use crate::{
+                bus::{Bus, TestBus},
+                cpu::Cpu,
+                flags::{self, bit_is_set},
+                registers::Registers,
+                set_bits,
+            };
+
+            #[test]
+            fn should_ld_b_iyh() {
+                // LD r, r' [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x44);
+                cpu.registers.b = 0x12;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.b, 0xC0);
+            }
+
+            #[test]
+            fn should_ld_iyh_b() {
+                // LD r, r' [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x60);
+                cpu.registers.b = 0x12;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0x12DE);
+                assert_eq!(cpu.registers.b, 0x12);
+            }
+
+            #[test]
+            fn should_ld_b_iyl() {
+                // LD r, r' [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x45);
+                cpu.registers.b = 0x12;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.b, 0xDE);
+            }
+
+            #[test]
+            fn should_ld_iyl_b() {
+                // LD r, r' [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x68);
+                cpu.registers.b = 0x12;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC012);
+                assert_eq!(cpu.registers.b, 0x12);
+            }
+
+            #[test]
+            fn should_inc_r_iyh() {
+                // INC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x24);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC1DE);
+            }
+
+            #[test]
+            fn should_inc_r_iyl() {
+                // INC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x2C);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DF);
+            }
+
+            #[test]
+            fn should_dec_r_iyh() {
+                // DEC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x25);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xBFDE);
+            }
+
+            #[test]
+            fn should_dec_r_iyl() {
+                // DEC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x2D);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DD);
+            }
+
+            #[test]
+            fn should_add_a_iyh() {
+                // ADD A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x84);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_add_a_h_iyl() {
+                // ADD A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x85);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xE3);
+            }
+
+            #[test]
+            fn should_adc_a_iyh() {
+                // ADC A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x8C);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC6);
+            }
+
+            #[test]
+            fn should_adc_a_iyl() {
+                // ADC A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x8D);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xE4);
+            }
+
+            #[test]
+            fn should_sub_a_r_iyh() {
+                // SUB A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x94);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x45);
+            }
+
+            #[test]
+            fn should_sub_a_iyl() {
+                // SUB A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x95);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x27);
+            }
+
+            #[test]
+            fn should_sbc_a_r_iyh() {
+                // SBC A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x9C);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x44);
+            }
+
+            #[test]
+            fn should_sbc_a_h_iyl() {
+                // SBC A, r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0x9D);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+                cpu.registers.f = set_bits!(
+                    cpu.registers.f,
+                    flags::CARRY => true
+                );
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x26);
+            }
+
+            #[test]
+            fn should_cp_iyh() {
+                // CP r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xBC);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x05);
+                assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+                assert!(!bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            }
+
+            #[test]
+            fn should_cp_iyl() {
+                // CP r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xBD);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x05);
+                assert!(bit_is_set(cpu.registers.f, flags::CARRY));
+                assert!(bit_is_set(cpu.registers.f, flags::ADD_SUBTRACT));
+                assert!(!bit_is_set(cpu.registers.f, flags::PARITY_OVERFLOW));
+                assert!(bit_is_set(cpu.registers.f, flags::HALF_CARRY));
+                assert!(!bit_is_set(cpu.registers.f, flags::ZERO));
+                assert!(!bit_is_set(cpu.registers.f, flags::SIGN));
+            }
+
+            #[test]
+            fn should_and_iyh() {
+                // AND r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xA4);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x00);
+            }
+
+            #[test]
+            fn should_and_iyl() {
+                // AND r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xA5);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0x04);
+            }
+
+            #[test]
+            fn should_or_iyh() {
+                // OR r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xB4);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_or_iyl() {
+                // OR r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xB5);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xDF);
+            }
+
+            #[test]
+            fn should_xor_iyh() {
+                // XOR r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xAC);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xC5);
+            }
+
+            #[test]
+            fn should_xor_iyl() {
+                // XOR r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xAD);
+                cpu.registers.a = 0x05;
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0002);
+                assert_eq!(cpu.registers.iy, 0xC0DE);
+                assert_eq!(cpu.registers.a, 0xDB);
+            }
         }
     }
 
