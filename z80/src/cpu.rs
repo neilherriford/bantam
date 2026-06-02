@@ -1339,29 +1339,34 @@ where
             (3, 3, 5) => {
                 // DD Prefix
                 self.advance();
-                let opcode = self.read_and_advance();
+                let opcode = self.bus.read8(self.registers.pc);
 
                 match decode::into_group_and_operands(opcode) {
                     (0, 4, 1) => {
                         // LD IX, nnnn
+                        self.advance();
                         self.registers.ix = self.read_16_and_advance();
                     }
                     (0, 4, 2) => {
                         // LD (nn), IX
+                        self.advance();
                         let address = self.read_16_and_advance();
                         self.bus.write16(address, self.registers.ix);
                     }
                     (0, 5, 2) => {
                         // LD IX, (nn)
+                        self.advance();
                         let address = self.read_16_and_advance();
                         self.registers.ix = self.bus.read16(address);
                     }
                     (3, 7, 1) => {
                         // LD SP, IX
+                        self.advance();
                         self.registers.sp = self.registers.ix;
                     }
                     (0, 6, 6) => {
                         // LD (IX+d), n
+                        self.advance();
                         let offset = self.read_and_advance();
                         let value = self.read_and_advance();
 
@@ -1371,6 +1376,7 @@ where
                     }
                     (0, pair @ (1 | 3 | 5 | 7), 1) => {
                         // ADD IX, rp
+                        self.advance();
                         let addend = match pair {
                             1 => self.registers.bc(),
                             3 => self.registers.de(),
@@ -1384,14 +1390,17 @@ where
                     }
                     (0, 4, 3) => {
                         // INC IX
+                        self.advance();
                         self.registers.ix = self.registers.ix.wrapping_add(1);
                     }
                     (0, 5, 3) => {
                         // DEC IX
+                        self.advance();
                         self.registers.ix = self.registers.ix.wrapping_sub(1);
                     }
                     (0, 6, 4) => {
                         // INC (IX+d)
+                        self.advance();
                         let offset = self.read_and_advance();
 
                         let signed_offset = (offset as i8) as i16;
@@ -1411,6 +1420,7 @@ where
                     }
                     (0, 6, 5) => {
                         // DEC (IX+d)
+                        self.advance();
                         let offset = self.read_and_advance();
 
                         let signed_offset = (offset as i8) as i16;
@@ -1430,6 +1440,7 @@ where
                     }
                     (1, register, 6) if register != 6 => {
                         // LD r, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
 
                         let signed_offset = (offset as i8) as i16;
@@ -1440,6 +1451,7 @@ where
                     }
                     (1, 6, register) if register != 6 => {
                         // LD (IX + d), r
+                        self.advance();
                         let offset = self.read_and_advance();
                         let value = self.read_indexed_register(register);
                         let signed_offset = (offset as i8) as i16;
@@ -1449,6 +1461,7 @@ where
                     }
                     (2, 0, 6) => {
                         // ADD A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1458,6 +1471,7 @@ where
                     }
                     (2, 1, 6) => {
                         // ADC A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1467,6 +1481,7 @@ where
                     }
                     (2, 2, 6) => {
                         // SUB A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1477,6 +1492,7 @@ where
                     }
                     (2, 3, 6) => {
                         // SBC A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1487,6 +1503,7 @@ where
                     }
                     (2, 4, 6) => {
                         // AND A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1498,6 +1515,7 @@ where
                     }
                     (2, 5, 6) => {
                         // XOR A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1509,6 +1527,7 @@ where
                     }
                     (2, 6, 6) => {
                         // OR A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1520,6 +1539,7 @@ where
                     }
                     (2, 7, 6) => {
                         // CP A, (IX + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1529,27 +1549,32 @@ where
                     }
                     (3, 5, 1) => {
                         // JP IX
+                        self.advance();
                         self.registers.pc = self.registers.ix;
                     }
                     (3, 4, 5) => {
                         // PUSH IX
+                        self.advance();
                         self.registers.sp = self.registers.sp.wrapping_sub(2);
                         self.bus.write16(self.registers.sp, self.registers.ix);
                     }
                     (3, 4, 1) => {
                         // POP IX
+                        self.advance();
                         let value = self.bus.read16(self.registers.sp);
                         self.registers.sp = self.registers.sp.wrapping_add(2);
                         self.registers.ix = value;
                     }
                     (3, 4, 3) => {
                         // EX (SP), IX
+                        self.advance();
                         let buffer = self.bus.read16(self.registers.sp);
                         self.bus.write16(self.registers.sp, self.registers.ix);
                         self.registers.ix = buffer;
                     }
                     (3, 1, 3) => {
                         // 0xCB
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.ix.wrapping_add_signed(signed_offset);
@@ -1918,11 +1943,13 @@ where
                     // Undocumented
                     (1, dest, src) if dest != 6 && src != 6 => {
                         // LD r, r' [IXh/IXl]
+                        self.advance();
                         let value = self.read_ix_indexed_register(src);
                         self.write_ix_indexed_register(dest, value);
                     }
                     (0, register, 4) => {
                         // INC r
+                        self.advance();
                         let before = self.read_ix_indexed_register(register);
                         let after = before.wrapping_add(1);
                         self.write_ix_indexed_register(register, after);
@@ -1938,6 +1965,7 @@ where
                     }
                     (0, register, 5) => {
                         // DEC r
+                        self.advance();
                         let before = self.read_ix_indexed_register(register);
                         let after = before.wrapping_sub(1);
                         self.write_ix_indexed_register(register, after);
@@ -1953,6 +1981,7 @@ where
                     }
                     (2, 0, register) => {
                         // ADD A, r
+                        self.advance();
                         let sum = self.add_u8_by_ix_index_and_set_flags_for(
                             registers::index::A,
                             register,
@@ -1962,6 +1991,7 @@ where
                     }
                     (2, 1, register) => {
                         // ADC A, r
+                        self.advance();
                         let sum = self.add_u8_by_ix_index_and_set_flags_for(
                             registers::index::A,
                             register,
@@ -1971,6 +2001,7 @@ where
                     }
                     (2, 2, register) => {
                         // SUB A, r
+                        self.advance();
                         let difference = self.subtract_u8_by_ix_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -1980,6 +2011,7 @@ where
                     }
                     (2, 3, register) => {
                         // SBC A, r
+                        self.advance();
                         let difference = self.subtract_u8_by_ix_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -1989,6 +2021,7 @@ where
                     }
                     (2, 7, register) => {
                         // CP r
+                        self.advance();
                         self.subtract_u8_by_ix_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -1997,6 +2030,7 @@ where
                     }
                     (2, 4, register) => {
                         // AND r
+                        self.advance();
                         let value = self.read_ix_indexed_register(register);
                         self.registers.a &= value;
                         self.set_boolean_operator_flags(self.registers.a);
@@ -2004,6 +2038,7 @@ where
                     }
                     (2, 6, register) => {
                         // OR r
+                        self.advance();
                         let value = self.read_ix_indexed_register(register);
                         self.registers.a |= value;
                         self.set_boolean_operator_flags(self.registers.a);
@@ -2011,10 +2046,25 @@ where
                     }
                     (2, 5, register) => {
                         // XOR r
+                        self.advance();
                         let value = self.read_ix_indexed_register(register);
                         self.registers.a ^= value;
                         self.set_boolean_operator_flags(self.registers.a);
                         self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
+                    (3, 3, 5) => {
+                        // DD prefix. This means that we'll ignore the
+                        // current DD prefix and interpret the next
+                        // operand as the beginning of an DD prefixed
+                        // operand
+                        self.step();
+                    }
+                    (3, 7, 5) => {
+                        // FD prefix. This means that we'll ignore the
+                        // current DD prefix and interpret the next
+                        // operand as the beginning of an FD prefixed
+                        // operand
+                        self.step();
                     }
                     _ => panic!("Unsupported DD instruction"),
                 }
@@ -2022,29 +2072,34 @@ where
             (3, 7, 5) => {
                 // FD Prefix
                 self.advance();
-                let opcode = self.read_and_advance();
+                let opcode = self.bus.read8(self.registers.pc);
 
                 match decode::into_group_and_operands(opcode) {
                     (0, 4, 1) => {
                         // LD IY, nnnn
+                        self.advance();
                         self.registers.iy = self.read_16_and_advance();
                     }
                     (0, 4, 2) => {
                         // LD (nn), IY
+                        self.advance();
                         let address = self.read_16_and_advance();
                         self.bus.write16(address, self.registers.iy);
                     }
                     (0, 5, 2) => {
                         // LD IY, (nn)
+                        self.advance();
                         let address = self.read_16_and_advance();
                         self.registers.iy = self.bus.read16(address);
                     }
                     (3, 7, 1) => {
                         // LD SP, IY
+                        self.advance();
                         self.registers.sp = self.registers.iy;
                     }
                     (0, 6, 6) => {
                         // LD (IY+d), n
+                        self.advance();
                         let offset = self.read_and_advance();
                         let value = self.read_and_advance();
 
@@ -2054,6 +2109,7 @@ where
                     }
                     (0, pair @ (1 | 3 | 5 | 7), 1) => {
                         // ADD IY, rp
+                        self.advance();
                         let addend = match pair {
                             1 => self.registers.bc(),
                             3 => self.registers.de(),
@@ -2067,14 +2123,17 @@ where
                     }
                     (0, 4, 3) => {
                         // INC IY
+                        self.advance();
                         self.registers.iy = self.registers.iy.wrapping_add(1);
                     }
                     (0, 5, 3) => {
                         // DEC IY
+                        self.advance();
                         self.registers.iy = self.registers.iy.wrapping_sub(1);
                     }
                     (0, 6, 4) => {
                         // INC (IY+d)
+                        self.advance();
                         let offset = self.read_and_advance();
 
                         let signed_offset = (offset as i8) as i16;
@@ -2094,6 +2153,7 @@ where
                     }
                     (0, 6, 5) => {
                         // DEC (IY+d)
+                        self.advance();
                         let offset = self.read_and_advance();
 
                         let signed_offset = (offset as i8) as i16;
@@ -2113,6 +2173,7 @@ where
                     }
                     (1, register, 6) if register != 6 => {
                         // LD r, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2122,7 +2183,7 @@ where
                     }
                     (1, 6, register) if register != 6 => {
                         // LD (IY + d), r
-
+                        self.advance();
                         let offset = self.read_and_advance();
                         let value = self.read_indexed_register(register);
                         let signed_offset = (offset as i8) as i16;
@@ -2132,6 +2193,7 @@ where
                     }
                     (2, 0, 6) => {
                         // ADD A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2141,6 +2203,7 @@ where
                     }
                     (2, 1, 6) => {
                         // ADC A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2150,6 +2213,7 @@ where
                     }
                     (2, 2, 6) => {
                         // SUB A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2160,6 +2224,7 @@ where
                     }
                     (2, 3, 6) => {
                         // SBC A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2170,6 +2235,7 @@ where
                     }
                     (2, 4, 6) => {
                         // AND A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2181,6 +2247,7 @@ where
                     }
                     (2, 5, 6) => {
                         // XOR A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2192,6 +2259,7 @@ where
                     }
                     (2, 6, 6) => {
                         // OR A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2203,6 +2271,7 @@ where
                     }
                     (2, 7, 6) => {
                         // CP A, (IY + d)
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2212,27 +2281,32 @@ where
                     }
                     (3, 5, 1) => {
                         // JP IY
+                        self.advance();
                         self.registers.pc = self.registers.iy;
                     }
                     (3, 4, 5) => {
                         // PUSH IY
+                        self.advance();
                         self.registers.sp = self.registers.sp.wrapping_sub(2);
                         self.bus.write16(self.registers.sp, self.registers.iy);
                     }
                     (3, 4, 1) => {
                         // POP IY
+                        self.advance();
                         let value = self.bus.read16(self.registers.sp);
                         self.registers.sp = self.registers.sp.wrapping_add(2);
                         self.registers.iy = value;
                     }
                     (3, 4, 3) => {
                         // EX (SP), IY
+                        self.advance();
                         let buffer = self.bus.read16(self.registers.sp);
                         self.bus.write16(self.registers.sp, self.registers.iy);
                         self.registers.iy = buffer;
                     }
                     (3, 1, 3) => {
                         // 0xCB
+                        self.advance();
                         let offset = self.read_and_advance();
                         let signed_offset = (offset as i8) as i16;
                         let address = self.registers.iy.wrapping_add_signed(signed_offset);
@@ -2601,11 +2675,13 @@ where
                     // Undocumented
                     (1, dest, src) if dest != 6 && src != 6 => {
                         // LD r, r' [IYh/IYl]
+                        self.advance();
                         let value = self.read_iy_indexed_register(src);
                         self.write_iy_indexed_register(dest, value);
                     }
                     (0, register, 4) => {
                         // INC r [IYh/IYl]
+                        self.advance();
                         let before = self.read_iy_indexed_register(register);
                         let after = before.wrapping_add(1);
                         self.write_iy_indexed_register(register, after);
@@ -2621,6 +2697,7 @@ where
                     }
                     (0, register, 5) => {
                         // DEC r [IYh/IYl]
+                        self.advance();
                         let before = self.read_iy_indexed_register(register);
                         let after = before.wrapping_sub(1);
                         self.write_iy_indexed_register(register, after);
@@ -2636,6 +2713,7 @@ where
                     }
                     (2, 0, register) => {
                         // ADD A, r [IYh/IYl]
+                        self.advance();
                         let sum = self.add_u8_by_iy_index_and_set_flags_for(
                             registers::index::A,
                             register,
@@ -2645,6 +2723,7 @@ where
                     }
                     (2, 1, register) => {
                         // ADC A, r [IYh/IYl]
+                        self.advance();
                         let sum = self.add_u8_by_iy_index_and_set_flags_for(
                             registers::index::A,
                             register,
@@ -2654,6 +2733,7 @@ where
                     }
                     (2, 2, register) => {
                         // SUB A, r [IYh/IYl]
+                        self.advance();
                         let difference = self.subtract_u8_by_iy_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -2663,6 +2743,7 @@ where
                     }
                     (2, 3, register) => {
                         // SBC A, r [IYh/IYl]
+                        self.advance();
                         let difference = self.subtract_u8_by_iy_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -2672,6 +2753,7 @@ where
                     }
                     (2, 7, register) => {
                         // CP r [IYh/IYl]
+                        self.advance();
                         self.subtract_u8_by_iy_index_and_set_flags(
                             registers::index::A,
                             register,
@@ -2680,6 +2762,7 @@ where
                     }
                     (2, 4, register) => {
                         // AND r [IYh/IYl]
+                        self.advance();
                         let value = self.read_iy_indexed_register(register);
                         self.registers.a &= value;
                         self.set_boolean_operator_flags(self.registers.a);
@@ -2687,6 +2770,7 @@ where
                     }
                     (2, 6, register) => {
                         // OR r [IYh/IYl]
+                        self.advance();
                         let value = self.read_iy_indexed_register(register);
                         self.registers.a |= value;
                         self.set_boolean_operator_flags(self.registers.a);
@@ -2694,10 +2778,25 @@ where
                     }
                     (2, 5, register) => {
                         // XOR r [IYh/IYl]
+                        self.advance();
                         let value = self.read_iy_indexed_register(register);
                         self.registers.a ^= value;
                         self.set_boolean_operator_flags(self.registers.a);
                         self.registers.f = set_bits!(self.registers.f, flags::HALF_CARRY => false);
+                    }
+                    (3, 3, 5) => {
+                        // DD prefix. This means that we'll ignore the
+                        // current FD prefix and interpret the next
+                        // operand as the beginning of an DD prefixed
+                        // operand
+                        self.step();
+                    }
+                    (3, 7, 5) => {
+                        // FD prefix. This means that we'll ignore the
+                        // current FD prefix and interpret the next
+                        // operand as the beginning of an FD prefixed
+                        // operand
+                        self.step();
                     }
                     _ => panic!("Unsupported FD instruction"),
                 }
@@ -10683,6 +10782,36 @@ mod tests {
                 assert_eq!(cpu.registers.ix, 0xC0DE);
                 assert_eq!(cpu.registers.a, 0xDB);
             }
+
+            #[test]
+            fn should_ignore_double_dd() {
+                // INC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xDD);
+                cpu.bus.write8(0x02, 0x2C);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0003);
+                assert_eq!(cpu.registers.ix, 0xC0DF);
+            }
+
+            #[test]
+            fn should_switch_to_ix_mode() {
+                // INC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xDD);
+                cpu.bus.write8(0x01, 0xFD);
+                cpu.bus.write8(0x02, 0x2C);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0003);
+                assert_eq!(cpu.registers.iy, 0xC0DF);
+            }
         }
 
         mod cb_modifier {
@@ -13769,6 +13898,36 @@ mod tests {
                 assert_eq!(cpu.registers.pc, 0x0002);
                 assert_eq!(cpu.registers.iy, 0xC0DE);
                 assert_eq!(cpu.registers.a, 0xDB);
+            }
+
+            #[test]
+            fn should_ignore_double_fd() {
+                // INC r [IYh/IYl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xFD);
+                cpu.bus.write8(0x02, 0x2C);
+                cpu.registers.iy = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0003);
+                assert_eq!(cpu.registers.iy, 0xC0DF);
+            }
+
+            #[test]
+            fn should_switch_to_ix_mode() {
+                // INC r [IXh/IXl]
+                let mut cpu = Cpu::new(Registers::new(), TestBus::new());
+                cpu.bus.write8(0x00, 0xFD);
+                cpu.bus.write8(0x01, 0xDD);
+                cpu.bus.write8(0x02, 0x2C);
+                cpu.registers.ix = 0xC0DE;
+
+                cpu.step();
+
+                assert_eq!(cpu.registers.pc, 0x0003);
+                assert_eq!(cpu.registers.ix, 0xC0DF);
             }
         }
     }
